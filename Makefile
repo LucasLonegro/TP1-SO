@@ -4,6 +4,8 @@ ALL_CFLAGS = -pedantic -Wall -std=c99 $(CFLAGS)
 
 OUT_DIR = bin
 
+TEST_FILES = Makefile
+
 all: pre-build md5 esclavo vista
 
 md5: aplicacion.c
@@ -14,6 +16,12 @@ esclavo: esclavo.c
 
 vista: vista.c
 	$(CC) $(ALL_CFLAGS) $< -o $(OUT_DIR)/$@
+
+debug: CFLAGS = -g
+debug: all
+
+valgrind: debug
+	@valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(OUT_DIR)/md5 $(TEST_FILES)
 
 pre-build:
 	@mkdir -p $(OUT_DIR)

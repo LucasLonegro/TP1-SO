@@ -16,7 +16,6 @@ int main(int argc, char ** argv){
     char buffer[4096] = "md5sum ";
     FILE * md5sum = popen(strcat(buffer,argv[1]),"r");
     fgets(buffer,4096,md5sum);
-    truncateString(buffer);
     write(1,buffer,strlen(buffer));
     pclose(md5sum);
     return 0;

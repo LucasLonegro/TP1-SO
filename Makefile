@@ -23,10 +23,15 @@ debug: all
 valgrind: debug
 	@valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(OUT_DIR)/md5 $(TEST_FILES)
 
+pvs:
+	@pvs-studio-analyzer trace -o $(OUT_DIR)/strace_out -- make
+	@pvs-studio-analyzer analyze -f $(OUT_DIR)/strace_out -o $(OUT_DIR)/project-analysis.log
+	@plog-converter -a GA:1,2 -t tasklist -o report.tasks --stdout $(OUT_DIR)/project-analysis.log
+
 pre-build:
 	@mkdir -p $(OUT_DIR)
 
 clean:
-	@rm -rf $(OUT_DIR)/*
+	@rm -rf $(OUT_DIR)/* report.tasks
 
 .PHONY: all clean

@@ -53,3 +53,6 @@ dkms.conf
 
 # Output directory
 bin/
+
+# PVS Tasks
+*.tasks

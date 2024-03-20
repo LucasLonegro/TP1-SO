@@ -1,0 +1,27 @@
+{
+    "tasks": [
+        {
+            "type": "process",
+            "label": "Docker: Build project",
+            "command": "docker",
+            "args": [
+                "run",
+                "--rm",
+                "-v",
+                "${workspaceFolder}:/app",
+                "agodio/itba-so:2.0",
+                "/bin/make",
+                "-C",
+                "/app"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ],
+    "version": "2.0.0"
+}

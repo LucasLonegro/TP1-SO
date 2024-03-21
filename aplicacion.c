@@ -24,9 +24,9 @@ int main(int argc, char *argv[])
     }
 
     // Open a shared memory with an unique name
-    const char shm_name[255] = "/md5_shm_0";
-    snprintf((char *)shm_name, sizeof(shm_name) - 1, "/md5_shm_%d", getpid());
-    int shmid = shm_open(shm_name, O_RDWR | O_CREAT | O_EXCL, 0666);
+    const char shmName[255] = "/md5_shm_0";
+    snprintf((char *)shmName, sizeof(shmName) - 1, "/md5_shm_%d", getpid());
+    int shmid = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0666);
 
     if (shmid < 0)
     {
@@ -34,25 +34,25 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    puts(shm_name);
+    puts(shmName);
 
-    int file_count = argc - 1;
+    int fileCount = argc - 1;
 
-    int childs_count = file_count;
-    if (file_count > MIN_CHILDS)
+    int childsCount = fileCount;
+    if (fileCount > MIN_CHILDS)
     {
-        int math = file_count / 10;
-        childs_count = MIN(MAX_CHILDS, MAX(MIN_CHILDS, math));
+        int math = fileCount / 10;
+        childsCount = MIN(MAX_CHILDS, MAX(MIN_CHILDS, math));
     }
 
-    printf("Max childs: %d\n", childs_count);
+    printf("Max childs: %d\n", childsCount);
     for (int i = 1; i < argc; i++)
     {
         printf("%s\n", argv[i]);
     }
 
     // Unlink the shared memory
-    if (shm_unlink(shm_name) < 0)
+    if (shm_unlink(shmName) < 0)
     {
         perror("shm_unlink");
         exit(1);

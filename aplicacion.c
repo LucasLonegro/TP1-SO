@@ -61,27 +61,31 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-char makeChild(int *fdWrite, int *fdRead)
+/**
+ * @brief Create a child process and return the read and write ends of the pipes
+ *
+ * @param write Returns the write end of the pipe for the parent
+ * @param read Returns the read end of the pipes for the parent
+ * @return int 0 if success, 1 if error
+ */
+int makeChild(int *write, int *read)
 {
     int pipeRead[2], pipeWrite[2], pid;
-    if (pipe(pipeRead) || (pipe(pipeWrite)) || ((pid = fork()) == -1))
-        return -1;
+    if (pipe(pipeRead) || pipe(pipeWrite) || ((pid = fork()) == -1))
+        return 1;
+
     if (pid)
     {
-        // parent process
-
         // close read end of write pipe, close write end of read pipe
         close(pipeWrite[0]);
         close(pipeRead[1]);
 
         // set return values to write and read ends of the two pipes produced
-        *fdWrite = pipeWrite[1];
-        *fdRead = pipeRead[0];
+        *write = pipeWrite[1];
+        *read = pipeRead[0];
     }
     else
     {
-        // child process
-
         // close write end of parent's write pipe, close read end of parent's read pipe
         close(pipeWrite[1]);
         close(pipeRead[0]);
@@ -92,9 +96,10 @@ char makeChild(int *fdWrite, int *fdRead)
         dup(pipeWrite[0]);
         dup(pipeRead[1]);
 
-        char *null = NULL;
-        if (execve("esclavo", &null, &null))
-            return -1;
+        char null[] = {NULL};
+        if (execve("esclavo", null, null))
+            return 1;
     }
+
     return 0;
 }

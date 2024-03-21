@@ -12,7 +12,8 @@
                 "agodio/itba-so:2.0",
                 "/bin/make",
                 "-C",
-                "/app"
+                "/app",
+                "${input:task}"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -21,6 +22,35 @@
                 "kind": "build",
                 "isDefault": true
             }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "task",
+            "type": "pickString",
+            "description": "What task to run?",
+            "options": [
+                {
+                    "label": "Build",
+                    "value": "all"
+                },
+                {
+                    "label": "Valgrind",
+                    "value": "valgrind"
+                },
+                {
+                    "label": "Analyze",
+                    "value": "pvs"
+                },
+                {
+                    "label": "Clean",
+                    "value": "clean"
+                },
+                {
+                    "label": "GDB",
+                    "value": "debug"
+                }
+            ]
         }
     ],
     "version": "2.0.0"

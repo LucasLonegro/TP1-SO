@@ -8,7 +8,6 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#define _GNU_SOURCE
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
@@ -65,7 +64,7 @@ int main(int argc, char *argv[])
 char makeChild(int *fdWrite, int *fdRead)
 {
     int pipeRead[2], pipeWrite[2], pid;
-    if (pipe2(pipeRead, __O_DIRECT) || (pipe2(pipeWrite, __O_DIRECT)) || (pid = fork()))
+    if (pipe(pipeRead) || (pipe(pipeWrite)) || ((pid = fork()) == -1))
         return -1;
     if (pid)
     {

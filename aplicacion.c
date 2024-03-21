@@ -60,3 +60,41 @@ int main(int argc, char *argv[])
 
     exit(0);
 }
+
+char makeChild(int *fdWrite, int *fdRead)
+{
+    int pipeRead[2], pipeWrite[2], pid;
+    if (pipe2(pipeRead, __O_DIRECT) || (pipe2(pipeWrite, __O_DIRECT)) || (pid = fork()))
+        return -1;
+    if (pid)
+    {
+        // parent process
+
+        // close read end of write pipe, close write end of read pipe
+        close(pipeWrite[0]);
+        close(pipeRead[1]);
+
+        // set return values to write and read ends of the two pipes produced
+        *fdWrite = pipeWrite[1];
+        *fdRead = pipeRead[0];
+    }
+    else
+    {
+        // child process
+
+        // close write end of parent's write pipe, close read end of parent's read pipe
+        close(pipeWrite[1]);
+        close(pipeRead[0]);
+
+        // dup stdin and stdout to parent's write and read pipes, respectively
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        dup(pipeWrite[0]);
+        dup(pipeRead[1]);
+
+        char *null = NULL;
+        if (execve("esclavo", &null, &null))
+            return -1;
+    }
+    return 0;
+}

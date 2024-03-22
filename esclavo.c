@@ -4,25 +4,38 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
-char *truncateString(char *s)
+#define MAX_PATH 4096
+
+int readStdio(char *buffer, int maxBuffer)
 {
-    int i = 0;
-    while (s[i] && s[i] != ' ' && s[i] != '\n')
-        i++;
-    s[i] = 0;
-    return s;
+    return read(STDIN_FILENO, buffer, maxBuffer) == maxBuffer;
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
-    if (argc < 2)
-        return 1;
-    char buffer[4096];
-    snprintf(buffer, sizeof(buffer), "md5sum %s", argv[1]);
-    FILE *md5sum = popen(buffer, "r");
-    fgets(buffer, 4096, md5sum);
-    write(1, buffer, strlen(buffer));
-    pclose(md5sum);
-    return 0;
+    char buffer[MAX_PATH + strlen("md5sum ")], stdinBuffer[MAX_PATH];
+
+    while (1)
+    {
+        if (readStdio(stdinBuffer, sizeof(stdinBuffer)))
+        {
+            write(STDOUT_FILENO, "", 1);
+
+            // parent is responsible for ensuring only one filename is on the buffer at a time
+            fflush(STDIN_FILENO);
+        }
+
+        snprintf(buffer, sizeof(buffer), "md5sum %s", stdinBuffer);
+        FILE *md5sum = popen(buffer, "r");
+        fgets(buffer, 4096, md5sum);
+        write(STDOUT_FILENO, buffer, strlen(buffer));
+
+        pclose(md5sum);
+
+        exit(0);
+    }
+
+    exit(0);
 }

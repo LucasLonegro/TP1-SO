@@ -24,6 +24,7 @@
 
 int makeChild(int *write, int *read, int *childPid);
 fd_set makeFdSet(int *fdVector, int dim);
+void forwardPipes(int nfds, int *readFds, int readCount, int dumpFd, int *readFrom);
 
 int main(int argc, char *argv[])
 {
@@ -79,40 +80,36 @@ int main(int argc, char *argv[])
      *  Write to each ready read file descriptor's associated write file descriptor the next file for the child to manage
      *  Then write the child's previous output to the results file
      */
-    char buffer[4096] = {0};
     while (currentFile < argc)
     {
-        fd_set reading = makeFdSet(fdRead, childsCount);
-        if (select(nfds, &reading, NULL, NULL, NULL) == -1)
-            exit(1);
-        for (int i = 0; i < childsCount; i++)
+        // gather outputs from all children into results file
+        int readFrom[childsCount + 1];
+        forwardPipes(nfds, fdRead, childsCount, resultado, readFrom);
+
+        // give each child that produced an output a new file to process
+        for (int i = 0; readFrom[i] != -1; i++)
         {
-            // check which read file descriptors are ready, indicating the child has finished processing a file
-            if (FD_ISSET(fdRead[i], &reading))
-            {
-                // read the child's output
-                if (read(fdRead[i], buffer, sizeof(buffer)) == -1)
-                    exit(1);
-                // pass the child's output to the results file
-                if (write(resultado, buffer, strlen(buffer)) == -1)
-                    exit(1);
-                // give the child a new file to process
-                printf("%s\n", buffer);
-                if (write(fdWrite[i], argv[currentFile], strlen(argv[currentFile])) == -1)
-                    exit(1);
-                currentFile++;
-                *buffer = 0; // good practice
-            }
+            if (write(fdWrite[readFrom[i]], argv[currentFile], strlen(argv[currentFile])) == -1)
+                exit(1);
+            currentFile++;
         }
     }
-    // Once all files have been processed, kill childs and close the results file
-    close(resultado);
-    /*
+
+    // Once all files have been handed off, signal children to terminate by writing the null string
     for (int i = 0; i < childsCount; i++)
     {
-        kill(childPids[i], 0);
+        char terminator = 1;
+        if (write(fdWrite[i], &terminator, 1) == -1)
+            exit(1);
     }
-    */
+    // wait for all children to terminate
+    waitpid(-1, NULL, 0);
+
+    // process last outputs created by children still with files assigned
+    forwardPipes(nfds, fdRead, childsCount, resultado, NULL);
+
+    // close results file
+    close(resultado);
 
     // Unlink the shared memory
     if (shm_unlink(shmName) < 0)
@@ -169,7 +166,40 @@ int makeChild(int *write, int *read, pid_t *childPid)
 
     return 0;
 }
-
+/**
+ * @brief Copy buffer from all ready fds in readFds paste on dumpFd return indices of read fds
+ *
+ * @param nfds is the maximum fd expected in readFds
+ * @param readFds is an array of all fds to be read
+ * @param readCount is the dim of readFds
+ * @param dumpFd is the fd where buffers are to be pasted
+ * @param readFrom return parameter. Function produces an array of all fds in readFds that were ready and were read from, terminated with -1. If NULL, will not be produced
+ */
+void forwardPipes(int nfds, int *readFds, int readCount, int dumpFd, int *readFrom)
+{
+    char buffer[4096] = {0};
+    int index = 0;
+    fd_set reading = makeFdSet(readFds, readCount);
+    if (select(nfds, &reading, NULL, NULL, NULL) == -1)
+        exit(1);
+    for (int i = 0; i < readCount; i++)
+    {
+        // check which read file descriptors are ready, indicating the child has finished processing a file
+        if (FD_ISSET(readFds[i], &reading))
+        {
+            if (readFrom != NULL)
+                readFrom[index++] = i;
+            // read the child's output
+            if (read(readFds[i], buffer, sizeof(buffer)) == -1)
+                exit(1);
+            // pass the child's output to the results file
+            if (write(dumpFd, buffer, strlen(buffer)) == -1)
+                exit(1);
+        }
+    }
+    if (readFrom != NULL)
+        readFrom[index] = -1;
+}
 fd_set makeFdSet(int *fdVector, int dim)
 {
     fd_set ans;

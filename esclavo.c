@@ -10,21 +10,45 @@
 
 int readStdio(char *buffer, int maxBuffer)
 {
-    return read(STDIN_FILENO, buffer, maxBuffer) == maxBuffer;
+    return read(STDIN_FILENO, buffer, maxBuffer);
+}
+int hasTerminator(char *s)
+{
+    while (*s)
+    {
+        if (*s == 1)
+        {
+            *s = 0;
+            return 1;
+        }
+        s++;
+    }
+    return 0;
 }
 
 int main(int argc, char *argv[])
 {
     char buffer[MAX_PATH + strlen("md5sum ")], stdinBuffer[MAX_PATH];
-
-    while (1)
+    int lastFileFlag = 0;
+    while (!lastFileFlag)
     {
-        if (readStdio(stdinBuffer, sizeof(stdinBuffer)))
+        int n;
+        if ((n = readStdio(stdinBuffer, sizeof(stdinBuffer))) == sizeof(buffer) || n == -1)
         {
             write(STDOUT_FILENO, "", 1);
 
             // parent is responsible for ensuring only one filename is on the buffer at a time
             fflush(STDIN_FILENO);
+        }
+
+        // on running out of new files to hand children, parent process sends the null string
+        if (hasTerminator(stdinBuffer))
+        {
+            printf("here");
+            if (!strcmp(stdinBuffer, ""))
+                break;
+            printf("%s", stdinBuffer);
+            lastFileFlag = 1;
         }
 
         snprintf(buffer, sizeof(buffer), "md5sum %s", stdinBuffer);
@@ -33,8 +57,6 @@ int main(int argc, char *argv[])
         write(STDOUT_FILENO, buffer, strlen(buffer));
 
         pclose(md5sum);
-
-        exit(0);
     }
 
     exit(0);

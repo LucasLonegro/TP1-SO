@@ -44,10 +44,8 @@ int main(int argc, char *argv[])
         // on running out of new files to hand children, parent process sends the null string
         if (hasTerminator(stdinBuffer))
         {
-            printf("here");
             if (!strcmp(stdinBuffer, ""))
                 break;
-            printf("%s", stdinBuffer);
             lastFileFlag = 1;
         }
 

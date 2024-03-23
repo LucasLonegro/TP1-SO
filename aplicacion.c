@@ -25,6 +25,7 @@
 int makeChild(int *write, int *read, int *childPid);
 fd_set makeFdSet(int *fdVector, int dim);
 void forwardPipes(int nfds, int *readFds, int readCount, int dumpFd, int *readFrom);
+void waitForAllChildren();
 
 int main(int argc, char *argv[])
 {
@@ -33,6 +34,7 @@ int main(int argc, char *argv[])
         puts("Usage: ./md5 <files_to_process>");
         exit(1);
     }
+    printf("Received %d arguments.\n", argc);
 
     // Open a shared memory with an unique name
     const char shmName[255] = "/md5_shm_0";
@@ -75,7 +77,6 @@ int main(int argc, char *argv[])
     int resultado = open("./bin/resultado.txt", O_WRONLY | O_CREAT);
     if (resultado == -1)
         exit(1);
-
     /** Read from file descriptors as they become ready
      *  Write to each ready read file descriptor's associated write file descriptor the next file for the child to manage
      *  Then write the child's previous output to the results file
@@ -89,7 +90,7 @@ int main(int argc, char *argv[])
         // give each child that produced an output a new file to process
         for (int i = 0; readFrom[i] != -1; i++)
         {
-            if (write(fdWrite[readFrom[i]], argv[currentFile], strlen(argv[currentFile])) == -1)
+            if (write(fdWrite[readFrom[i]], argv[currentFile], strlen(argv[currentFile]) + 1) == -1)
                 exit(1);
             currentFile++;
         }
@@ -102,8 +103,9 @@ int main(int argc, char *argv[])
         if (write(fdWrite[i], &terminator, 1) == -1)
             exit(1);
     }
+
     // wait for all children to terminate
-    waitpid(-1, NULL, 0);
+    waitForAllChildren();
 
     // process last outputs created by children still with files assigned
     forwardPipes(nfds, fdRead, childsCount, resultado, NULL);
@@ -166,6 +168,7 @@ int makeChild(int *write, int *read, pid_t *childPid)
 
     return 0;
 }
+int callCount = 0;
 /**
  * @brief Copy buffer from all ready fds in readFds paste on dumpFd return indices of read fds
  *
@@ -195,6 +198,8 @@ void forwardPipes(int nfds, int *readFds, int readCount, int dumpFd, int *readFr
             // pass the child's output to the results file
             if (write(dumpFd, buffer, strlen(buffer)) == -1)
                 exit(1);
+            if (write(dumpFd, "\n", 1) == -1)
+                exit(1);
         }
     }
     if (readFrom != NULL)
@@ -209,4 +214,9 @@ fd_set makeFdSet(int *fdVector, int dim)
         FD_SET(fdVector[i], &ans);
     }
     return ans;
+}
+void waitForAllChildren()
+{
+    while (wait(NULL) > 0)
+        ;
 }

@@ -8,9 +8,15 @@
 
 #define MAX_PATH 4096
 
-int readStdio(char *buffer, int maxBuffer)
+int readStdio(char *commandBuffer, int maxBuffer)
 {
-    return read(STDIN_FILENO, buffer, maxBuffer);
+    return read(STDIN_FILENO, commandBuffer, maxBuffer);
+}
+void terminateOnNewLine(char *s)
+{
+    while (*s != '\n' && *s)
+        s++;
+    *s = 0;
 }
 int hasTerminator(char *s)
 {
@@ -28,31 +34,35 @@ int hasTerminator(char *s)
 
 int main(int argc, char *argv[])
 {
-    char buffer[MAX_PATH + strlen("md5sum ")], stdinBuffer[MAX_PATH];
+    char commandBuffer[MAX_PATH + strlen("md5sum ")], stdinBuffer[MAX_PATH] = {0};
     int lastFileFlag = 0;
     while (!lastFileFlag)
     {
         int n;
-        if ((n = readStdio(stdinBuffer, sizeof(stdinBuffer))) == sizeof(buffer) || n == -1)
+        *stdinBuffer = 0;
+        *commandBuffer = 0;
+        if ((n = readStdio(stdinBuffer, sizeof(stdinBuffer))) == sizeof(stdinBuffer) || n == -1)
         {
             write(STDOUT_FILENO, "", 1);
 
-            // parent is responsible for ensuring only one filename is on the buffer at a time
+            // parent is responsible for ensuring only one filename is on the commandBuffer at a time
             fflush(STDIN_FILENO);
         }
 
         // on running out of new files to hand children, parent process sends the null string
         if (hasTerminator(stdinBuffer))
         {
+            printf("Terminating\n\n");
             if (!strcmp(stdinBuffer, ""))
                 break;
             lastFileFlag = 1;
         }
 
-        snprintf(buffer, sizeof(buffer), "md5sum %s", stdinBuffer);
-        FILE *md5sum = popen(buffer, "r");
-        fgets(buffer, 4096, md5sum);
-        write(STDOUT_FILENO, buffer, strlen(buffer));
+        snprintf(commandBuffer, sizeof(commandBuffer), "md5sum %s", stdinBuffer);
+        FILE *md5sum = popen(commandBuffer, "r");
+        fgets(commandBuffer, sizeof(commandBuffer), md5sum);
+        terminateOnNewLine(commandBuffer);
+        write(STDOUT_FILENO, commandBuffer, strlen(commandBuffer) + 1);
 
         pclose(md5sum);
     }

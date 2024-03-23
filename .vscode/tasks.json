@@ -15,6 +15,9 @@
                 "/app",
                 "${input:task}"
             ],
+            "problemMatcher": [
+                "$gcc"
+            ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },

@@ -35,7 +35,6 @@ int main(int argc, char *argv[])
         puts("Usage: ./md5 <files_to_process>");
         exit(1);
     }
-    // printf("Received %d arguments.\n", argc);
 
     // Open a shared memory with an unique name
     const char shmName[255] = "/md5_shm_0";
@@ -113,7 +112,7 @@ int main(int argc, char *argv[])
     }
 
     /**
-     * @brief The index (in argv) of the next file to be processed by a children
+     * @brief The index (in argv) of the next file to be processed by a child
      */
     int nextFile = childrenCount + 1;
     /**
@@ -233,11 +232,6 @@ int makeChild(int *write, int *read, pid_t *childPid)
 
     return 0;
 }
-
-/**
- * @brief TODO: Who are you?
- */
-int callCount = 0;
 
 /**
  * @brief Get the buffer of fds with status ready and write the outputs to dumpFd

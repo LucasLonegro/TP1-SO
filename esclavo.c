@@ -41,9 +41,13 @@ int main(int argc, char *argv[])
         struct stat fileData;
         if (!stat(stdinBuffer, &fileData) && !S_ISDIR(fileData.st_mode))
         {
+            // Write the verified readable file into an md5sum command
             snprintf(cmd, sizeof(cmd), "md5sum %s", stdinBuffer);
+
+            // Call md5sum
             FILE *md5sum = popen(cmd, "r");
 
+            // Parse the md5sum output and write it into stdout (which has been dupped into a pipe)
             if (fgets(cmd, sizeof(cmd), md5sum))
             {
                 removeNewLine(cmd);
@@ -53,6 +57,7 @@ int main(int argc, char *argv[])
         }
         else
         {
+            // Inform that the path given did not refer to a file this process could read
             int len = snprintf(cmd, sizeof(cmd), "Could not read: %s", stdinBuffer);
             write(STDOUT_FILENO, cmd, len + 1);
         }

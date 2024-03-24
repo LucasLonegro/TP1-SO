@@ -30,29 +30,29 @@ int main(int argc, char *argv[])
 
         // Check whether the given file can be read in order to calculate its md5 hash
         struct stat fileData;
-        if (!stat(stdinBuffer, &fileData) && !S_ISDIR(fileData.st_mode))
-        {
-            // Write the verified readable file into an md5sum command
-            snprintf(cmd, sizeof(cmd), "md5sum %s", stdinBuffer);
-
-            // Call md5sum
-            FILE *md5sum = popen(cmd, "r");
-
-            // Parse the md5sum output and write it into stdout
-            if (fgets(cmd, sizeof(cmd), md5sum))
-            {
-                removeNewLine(cmd);
-                write(STDOUT_FILENO, cmd, strlen(cmd) + 1);
-            }
-
-            pclose(md5sum);
-        }
-        else
+        if (stat(stdinBuffer, &fileData) || S_ISDIR(fileData.st_mode))
         {
             // Inform that the path given did not refer to a file this process could read
             int len = snprintf(cmd, sizeof(cmd), "Could not read: %s", stdinBuffer);
             write(STDOUT_FILENO, cmd, len + 1);
+
+            continue;
         }
+
+        // Write the verified readable file into an md5sum command
+        snprintf(cmd, sizeof(cmd), "md5sum %s", stdinBuffer);
+
+        // Call md5sum
+        FILE *md5sum = popen(cmd, "r");
+
+        // Parse the md5sum output and write it into stdout
+        if (fgets(cmd, sizeof(cmd), md5sum))
+        {
+            removeNewLine(cmd);
+            write(STDOUT_FILENO, cmd, strlen(cmd) + 1);
+        }
+
+        pclose(md5sum);
     }
 
     exit(0);

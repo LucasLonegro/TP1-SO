@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
         childrenCount = MIN(MAX_CHILDREN, MAX(MIN_CHILDS, math));
     }
 
-    pid_t childPids[MAX_CHILDREN];
+    pid_t childPids[MAX_CHILDREN] = {0};
     int fdWrite[MAX_CHILDREN];
     int fdRead[MAX_CHILDREN];
     /**

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/ipc.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -91,7 +92,7 @@ int main(int argc, char *argv[])
 
             shm_unlink(shmName);
             fclose(output);
-            killChildren(childPids, i);
+            // killChildren(childPids, i);
 
             exit(1);
         }
@@ -109,7 +110,7 @@ int main(int argc, char *argv[])
 
             shm_unlink(shmName);
             fclose(output);
-            killChildren(childPids, i + 1);
+            // killChildren(childPids, i + 1);
 
             exit(1);
         }
@@ -137,7 +138,7 @@ int main(int argc, char *argv[])
 
             shm_unlink(shmName);
             fclose(output);
-            killChildren(childPids, childrenCount);
+            // killChildren(childPids, childrenCount);
 
             exit(1);
         }
@@ -156,17 +157,19 @@ int main(int argc, char *argv[])
 
                 shm_unlink(shmName);
                 fclose(output);
-                killChildren(childPids, childrenCount);
+                // killChildren(childPids, childrenCount);
 
                 exit(1);
             }
         }
     }
 
+    /* PENDING REVIEW
     // I don't want to play with you anymore
     killChildren(childPids, childrenCount);
-
     // wait for all children to terminate
+    */
+
     // waitForAllChildren();
 
     // process last outputs created by children still with files assigned
@@ -222,6 +225,9 @@ int makeChild(int *write, int *read, pid_t *childPid)
     {
         // Set child's pid
         *childPid = getpid();
+
+        // Ensure child dies upon father's termination
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
 
         // Close the child's unused ends of the pipes
         if (close(pipeWrite[WRITE_END]) || close(pipeRead[READ_END]))

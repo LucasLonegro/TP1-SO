@@ -31,6 +31,8 @@ int main(int argc, char *argv[])
 
             // Parent is responsible for ensuring only one filename is on STDIN at a time
             fflush(STDIN_FILENO);
+
+            continue;
         }
 
         // Check whether the given file can be read in order to calculate its md5 hash

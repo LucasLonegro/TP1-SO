@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define MAX_PATH 4096
@@ -36,17 +37,25 @@ int main(int argc, char *argv[])
             // Parent is responsible for ensuring only one filename is on STDIN at a time
             fflush(STDIN_FILENO);
         }
-
-        snprintf(cmd, sizeof(cmd), "md5sum %s", stdinBuffer);
-        FILE *md5sum = popen(cmd, "r");
-
-        if (fgets(cmd, sizeof(cmd), md5sum))
+        // Check whether the given file can be read in order to calculate its md5 hash
+        struct stat fileData;
+        if (!stat(stdinBuffer, &fileData) && !S_ISDIR(fileData.st_mode))
         {
-            removeNewLine(cmd);
-            write(STDOUT_FILENO, cmd, strlen(cmd) + 1);
-        }
+            snprintf(cmd, sizeof(cmd), "md5sum %s", stdinBuffer);
+            FILE *md5sum = popen(cmd, "r");
 
-        pclose(md5sum);
+            if (fgets(cmd, sizeof(cmd), md5sum))
+            {
+                removeNewLine(cmd);
+                write(STDOUT_FILENO, cmd, strlen(cmd) + 1);
+            }
+            pclose(md5sum);
+        }
+        else
+        {
+            int len = snprintf(cmd, sizeof(cmd), "Could not read: %s", stdinBuffer);
+            write(STDOUT_FILENO, cmd, len + 1);
+        }
     }
 
     exit(0);

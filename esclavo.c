@@ -9,6 +9,11 @@
 
 #define MAX_PATH 4096
 
+/**
+ * @brief Search for a newline character in the string and replace it with a null terminator
+ *
+ * @param s The string to modify
+ */
 void removeNewLine(char *s);
 
 int main(int argc, char *argv[])

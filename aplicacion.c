@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
     puts(shmName);
 
     // Create output file
-    FILE *output = fopen("./bin/output.txt", "w+");
+    FILE *output = fopen("./bin/output.txt", "w");
     if (!output)
     {
         perror("fopen");

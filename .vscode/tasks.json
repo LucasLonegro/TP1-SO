@@ -1,7 +1,7 @@
 {
     "tasks": [
         {
-            "type": "process",
+            "type": "cppbuild",
             "label": "Docker: Build project",
             "command": "docker",
             "args": [

@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
         if (fgets(cmd, sizeof(cmd), md5sum))
         {
             removeNewLine(cmd);
-            write(STDOUT_FILENO, cmd, 1);
+            write(STDOUT_FILENO, cmd, strlen(cmd) + 1);
         }
 
         pclose(md5sum);

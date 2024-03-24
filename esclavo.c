@@ -1,68 +1,50 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 
-#include <unistd.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #define MAX_PATH 4096
 
-int readStdio(char *commandBuffer, int maxBuffer)
+int readStdIO(char *commandBuffer, int maxBuffer)
 {
     return read(STDIN_FILENO, commandBuffer, maxBuffer);
 }
-void terminateOnNewLine(char *s)
+
+void removeNewLine(char *s)
 {
     while (*s != '\n' && *s)
         s++;
     *s = 0;
 }
-int hasTerminator(char *s)
-{
-    while (*s)
-    {
-        if (*s == 1)
-        {
-            *s = 0;
-            return 1;
-        }
-        s++;
-    }
-    return 0;
-}
 
 int main(int argc, char *argv[])
 {
-    char commandBuffer[MAX_PATH + strlen("md5sum ")], stdinBuffer[MAX_PATH] = {0};
-    int lastFileFlag = 0;
-    while (!lastFileFlag)
+    char stdinBuffer[MAX_PATH] = {0};
+    char cmd[MAX_PATH + 7 /* strlen("md5sum ") */];
+
+    while (1)
     {
-        int n;
-        *stdinBuffer = 0;
-        *commandBuffer = 0;
-        if ((n = readStdio(stdinBuffer, sizeof(stdinBuffer))) == sizeof(stdinBuffer) || n == -1)
+        int n = readStdIO(stdinBuffer, sizeof(stdinBuffer));
+        if (n == sizeof(stdinBuffer) || n < 0)
         {
+            // Unexpected error
             write(STDOUT_FILENO, "", 1);
 
-            // parent is responsible for ensuring only one filename is on the commandBuffer at a time
+            // Parent is responsible for ensuring only one filename is on STDIN at a time
             fflush(STDIN_FILENO);
         }
 
-        // on running out of new files to hand children, parent process sends the null string
-        if (hasTerminator(stdinBuffer))
-        {
-            printf("Terminating\n\n");
-            if (!strcmp(stdinBuffer, ""))
-                break;
-            lastFileFlag = 1;
-        }
+        snprintf(cmd, sizeof(cmd), "md5sum %s", stdinBuffer);
+        FILE *md5sum = popen(cmd, "r");
 
-        snprintf(commandBuffer, sizeof(commandBuffer), "md5sum %s", stdinBuffer);
-        FILE *md5sum = popen(commandBuffer, "r");
-        fgets(commandBuffer, sizeof(commandBuffer), md5sum);
-        terminateOnNewLine(commandBuffer);
-        write(STDOUT_FILENO, commandBuffer, strlen(commandBuffer) + 1);
+        if (fgets(cmd, sizeof(cmd), md5sum))
+        {
+            removeNewLine(cmd);
+            write(STDOUT_FILENO, cmd, 1);
+        }
 
         pclose(md5sum);
     }

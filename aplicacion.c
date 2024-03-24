@@ -1,31 +1,33 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 
+#include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ipc.h>
 #include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/wait.h>
 #include <sys/select.h>
-#include <signal.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 #define MIN_CHILDS 5
-#define MAX_CHILDS 20
+#define MAX_CHILDREN 20
 #define READ_END 0
 #define WRITE_END 1
+#define BUFFER_SIZE 4096
 
 int makeChild(int *write, int *read, int *childPid);
 fd_set makeFdSet(int *fdVector, int dim);
-void forwardPipes(int nfds, int *readFds, int readCount, int dumpFd, int *readFrom);
+ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom);
 void waitForAllChildren();
+void killChildren(pid_t *childPids, int dim);
 
 int main(int argc, char *argv[])
 {
@@ -34,84 +36,144 @@ int main(int argc, char *argv[])
         puts("Usage: ./md5 <files_to_process>");
         exit(1);
     }
-    printf("Received %d arguments.\n", argc);
+    // printf("Received %d arguments.\n", argc);
 
     // Open a shared memory with an unique name
     const char shmName[255] = "/md5_shm_0";
     snprintf((char *)shmName, sizeof(shmName) - 1, "/md5_shm_%d", getpid());
-    int shmid = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0666);
 
+    int shmid = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0666);
     if (shmid < 0)
     {
         perror("shm_open");
+
+        // Nothing to free
+
         exit(1);
     }
 
     puts(shmName);
 
-    int fileCount = argc - 1;
+    // Create output file
+    FILE *output = fopen("./bin/output.txt", "w");
+    if (!output)
+    {
+        perror("fopen");
 
-    int childsCount = fileCount;
+        shm_unlink(shmName);
+
+        exit(1);
+    }
+
+    const int fileCount = argc - 1;
+
+    int childrenCount = fileCount;
     if (fileCount > MIN_CHILDS)
     {
         int math = fileCount / 10;
-        childsCount = MIN(MAX_CHILDS, MAX(MIN_CHILDS, math));
+        childrenCount = MIN(MAX_CHILDREN, MAX(MIN_CHILDS, math));
     }
 
-    int fdWrite[childsCount], fdRead[childsCount], currentFile = 1, nfds = 0;
-    pid_t childPids[childsCount];
-    for (int i = 0; i < childsCount; i++, currentFile++)
-    {
-        // fork, create read and write pipes, store associated fds, execute child program
-        if (makeChild(((int *)fdWrite) + i, ((int *)fdRead) + i, ((int *)childPids) + i))
-            exit(1);
-        // update nfds, maximum read fd, for select function
-        if (fdWrite[i] > nfds)
-            nfds = fdWrite[i];
-        // give each child its initial file to handle
-        if (write(fdWrite[i], argv[currentFile], strlen(argv[currentFile])) == -1)
-            exit(1);
-    }
-
-    // create results file
-    int resultado = open("./bin/resultado.txt", O_WRONLY | O_CREAT);
-    if (resultado == -1)
-        exit(1);
-    /** Read from file descriptors as they become ready
-     *  Write to each ready read file descriptor's associated write file descriptor the next file for the child to manage
-     *  Then write the child's previous output to the results file
+    pid_t childPids[MAX_CHILDREN];
+    int fdWrite[MAX_CHILDREN];
+    int fdRead[MAX_CHILDREN];
+    /**
+     * @brief Highest file descriptor for the select() function
+     * @see man 2 select
      */
-    while (currentFile < argc)
-    {
-        // gather outputs from all children into results file
-        int readFrom[childsCount + 1];
-        forwardPipes(nfds, fdRead, childsCount, resultado, readFrom);
+    int nfds = 0;
 
-        // give each child that produced an output a new file to process
-        for (int i = 0; readFrom[i] != -1; i++)
+    for (int i = 0; i < childrenCount; i++)
+    {
+        if (makeChild(((int *)fdWrite) + i, ((int *)fdRead) + i, ((int *)childPids) + i))
         {
-            if (write(fdWrite[readFrom[i]], argv[currentFile], strlen(argv[currentFile]) + 1) == -1)
-                exit(1);
-            currentFile++;
+            perror("makeChild");
+
+            shm_unlink(shmName);
+            fclose(output);
+            killChildren(childPids, i);
+
+            exit(1);
+        }
+
+        if (fdWrite[i] > nfds)
+        {
+            nfds = fdWrite[i];
+        }
+
+        // Give each child its initial file to handle
+        ssize_t written = write(fdWrite[i], argv[i + 1], strlen(argv[i + 1]) + 1);
+        if (written < 0)
+        {
+            perror("write");
+
+            shm_unlink(shmName);
+            fclose(output);
+            killChildren(childPids, i + 1);
+
+            exit(1);
         }
     }
 
-    // Once all files have been handed off, signal children to terminate by writing the null string
-    for (int i = 0; i < childsCount; i++)
+    /**
+     * @brief The index (in argv) of the next file to be processed by a children
+     */
+    int nextFile = childrenCount + 1;
+    /**
+     * @brief The number of files processed by children
+     */
+    int processCount = 0;
+
+    // Read from file descriptors as they become ready
+    // Write to each ready read file descriptor's associated write file descriptor the next file for the child to manage
+    // Then write the child's previous output to the results file
+    while (processCount < fileCount)
     {
-        char terminator = 1;
-        if (write(fdWrite[i], &terminator, 1) == -1)
+        int childrenReady[MAX_CHILDREN];
+        int count = forwardPipes(nfds, fdRead, childrenCount, output, childrenReady);
+        if (count < 0)
+        {
+            perror("forwardPipes");
+
+            shm_unlink(shmName);
+            fclose(output);
+            killChildren(childPids, childrenCount);
+
             exit(1);
+        }
+
+        processCount += count;
+
+        // Send the next file to each child ready while there are files to process
+        for (int i = 0; i < count && nextFile <= fileCount; i++, nextFile++)
+        {
+            char *filename = argv[nextFile];
+
+            ssize_t written = write(fdWrite[childrenReady[i]], filename, strlen(filename) + 1);
+            if (written < 0)
+            {
+                perror("write");
+
+                shm_unlink(shmName);
+                fclose(output);
+                killChildren(childPids, childrenCount);
+
+                exit(1);
+            }
+        }
     }
 
+    // I don't want to play with you anymore
+    killChildren(childPids, childrenCount);
+
     // wait for all children to terminate
-    waitForAllChildren();
+    // waitForAllChildren();
 
     // process last outputs created by children still with files assigned
-    forwardPipes(nfds, fdRead, childsCount, resultado, NULL);
+    // forwardPipes(nfds, fdRead, childrenCount, output, NULL);
 
     // close results file
-    close(resultado);
+    fclose(output);
 
     // Unlink the shared memory
     if (shm_unlink(shmName) < 0)
@@ -119,6 +181,7 @@ int main(int argc, char *argv[])
         perror("shm_unlink");
         exit(1);
     }
+
     exit(0);
 }
 
@@ -131,33 +194,46 @@ int main(int argc, char *argv[])
  */
 int makeChild(int *write, int *read, pid_t *childPid)
 {
-    int pipeRead[2], pipeWrite[2], pid;
-    if (pipe(pipeRead) || pipe(pipeWrite) || ((pid = fork()) == -1))
+    int pipeRead[2], pipeWrite[2];
+    if (pipe(pipeRead) || pipe(pipeWrite))
+    {
         return 1;
+    }
+
+    int pid = fork();
+    if (pid < 0)
+    {
+        return 1;
+    }
 
     if (pid)
     {
-        // close read end of write pipe, close write end of read pipe
-        close(pipeWrite[READ_END]);
-        close(pipeRead[WRITE_END]);
+        // Close the parent's unused ends of the pipes
+        if (close(pipeWrite[READ_END]) || close(pipeRead[WRITE_END]))
+        {
+            return 1;
+        }
 
-        // set return values to write and read ends of the two pipes produced
+        // Set return values
         *write = pipeWrite[1];
         *read = pipeRead[0];
     }
     else
     {
-        // set child's pid
+        // Set child's pid
         *childPid = getpid();
-        // close write end of parent's write pipe, close read end of parent's read pipe
-        close(pipeWrite[WRITE_END]);
-        close(pipeRead[READ_END]);
 
-        // dup stdin and stdout to parent's write and read pipes, respectively
-        close(STDOUT_FILENO);
-        close(STDIN_FILENO);
-        dup(pipeWrite[READ_END]);
-        dup(pipeRead[WRITE_END]);
+        // Close the child's unused ends of the pipes
+        if (close(pipeWrite[WRITE_END]) || close(pipeRead[READ_END]))
+        {
+            return 1;
+        }
+
+        // Dup stdin and stdout to parent's write and read pipes, respectively
+        if (dup2(pipeWrite[READ_END], STDIN_FILENO) == -1 || dup2(pipeRead[WRITE_END], STDOUT_FILENO) == -1)
+        {
+            return 1;
+        }
 
         char *const argv[] = {"./esclavo", NULL};
         if (execv("./bin/esclavo", argv))
@@ -168,43 +244,61 @@ int makeChild(int *write, int *read, pid_t *childPid)
 
     return 0;
 }
-int callCount = 0;
+
 /**
- * @brief Copy buffer from all ready fds in readFds paste on dumpFd return indices of read fds
- *
- * @param nfds is the maximum fd expected in readFds
- * @param readFds is an array of all fds to be read
- * @param readCount is the dim of readFds
- * @param dumpFd is the fd where buffers are to be pasted
- * @param readFrom return parameter. Function produces an array of all fds in readFds that were ready and were read from, terminated with -1. If NULL, will not be produced
+ * @brief TODO: Who are you?
  */
-void forwardPipes(int nfds, int *readFds, int readCount, int dumpFd, int *readFrom)
+int callCount = 0;
+
+/**
+ * @brief Get the buffer of fds with status ready and write the outputs to dumpFd
+ *
+ * @param nfds maximum fd expected in readFds
+ * @param readFds array of all fds to be read
+ * @param readCount dim of readFds
+ * @param dumpFd file where buffers will be pasted
+ * @param readFrom return parameter. An array of all fds in readFds that were ready and read from. It may be NULL.
+ * @return int the number of read fds, -1 if error
+ */
+ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom)
 {
-    char buffer[4096] = {0};
     int index = 0;
+    char buffer[BUFFER_SIZE] = {0};
+
     fd_set reading = makeFdSet(readFds, readCount);
+
     if (select(nfds, &reading, NULL, NULL, NULL) == -1)
-        exit(1);
+    {
+        return -1;
+    }
+
     for (int i = 0; i < readCount; i++)
     {
-        // check which read file descriptors are ready, indicating the child has finished processing a file
+        // Check which read fd are ready (the child has finished processing a file)
         if (FD_ISSET(readFds[i], &reading))
         {
             if (readFrom != NULL)
+            {
                 readFrom[index++] = i;
+            }
+
             // read the child's output
             if (read(readFds[i], buffer, sizeof(buffer)) == -1)
-                exit(1);
-            // pass the child's output to the results file
-            if (write(dumpFd, buffer, strlen(buffer)) == -1)
-                exit(1);
-            if (write(dumpFd, "\n", 1) == -1)
-                exit(1);
+            {
+                return -1;
+            }
+
+            // Write to the output file
+            if (fprintf(dumpFd, "%s\n", buffer) < 0)
+            {
+                return -1;
+            }
         }
     }
-    if (readFrom != NULL)
-        readFrom[index] = -1;
+
+    return index;
 }
+
 fd_set makeFdSet(int *fdVector, int dim)
 {
     fd_set ans;
@@ -215,8 +309,17 @@ fd_set makeFdSet(int *fdVector, int dim)
     }
     return ans;
 }
+
 void waitForAllChildren()
 {
-    while (wait(NULL) > 0)
+    while (wait(NULL) >= 0)
         ;
+}
+
+void killChildren(pid_t *childPids, int dim)
+{
+    for (int i = 0; i < dim; i++)
+    {
+        kill(childPids[i], SIGKILL);
+    }
 }

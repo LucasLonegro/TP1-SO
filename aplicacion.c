@@ -27,8 +27,6 @@
 int makeChild(int *write, int *read, int *childPid);
 fd_set makeFdSet(int *fdVector, int dim);
 ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom);
-void waitForAllChildren();
-void killChildren(pid_t *childPids, int dim);
 
 int main(int argc, char *argv[])
 {
@@ -92,7 +90,6 @@ int main(int argc, char *argv[])
 
             shm_unlink(shmName);
             fclose(output);
-            // killChildren(childPids, i);
 
             exit(1);
         }
@@ -110,7 +107,6 @@ int main(int argc, char *argv[])
 
             shm_unlink(shmName);
             fclose(output);
-            // killChildren(childPids, i + 1);
 
             exit(1);
         }
@@ -138,7 +134,6 @@ int main(int argc, char *argv[])
 
             shm_unlink(shmName);
             fclose(output);
-            // killChildren(childPids, childrenCount);
 
             exit(1);
         }
@@ -157,23 +152,11 @@ int main(int argc, char *argv[])
 
                 shm_unlink(shmName);
                 fclose(output);
-                // killChildren(childPids, childrenCount);
 
                 exit(1);
             }
         }
     }
-
-    /* PENDING REVIEW
-    // I don't want to play with you anymore
-    killChildren(childPids, childrenCount);
-    // wait for all children to terminate
-    */
-
-    // waitForAllChildren();
-
-    // process last outputs created by children still with files assigned
-    // forwardPipes(nfds, fdRead, childrenCount, output, NULL);
 
     // close results file
     fclose(output);
@@ -314,18 +297,4 @@ fd_set makeFdSet(int *fdVector, int dim)
         FD_SET(fdVector[i], &ans);
     }
     return ans;
-}
-
-void waitForAllChildren()
-{
-    while (wait(NULL) >= 0)
-        ;
-}
-
-void killChildren(pid_t *childPids, int dim)
-{
-    for (int i = 0; i < dim; i++)
-    {
-        kill(childPids[i], SIGKILL);
-    }
 }

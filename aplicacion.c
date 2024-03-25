@@ -24,8 +24,32 @@
 #define WRITE_END 1
 #define BUFFER_SIZE 4096
 
+/**
+ * @brief Create a child process and return the read and write ends of the pipes
+ *
+ * @param write Returns the write end of the pipe for the parent
+ * @param read Returns the read end of the pipes for the parent
+ * @return int 0 if success, 1 if error
+ */
 int makeChild(int *write, int *read, int *childPid);
+/**
+ * @brief Set the file descriptors in fdVector in a fd_set
+ *
+ * @param fdVector The file descriptors to be set
+ * @param dim The number of file descriptors in fdVector
+ * @return fd_set
+ */
 fd_set makeFdSet(int *fdVector, int dim);
+/**
+ * @brief Get the buffer of fds with status ready and write the outputs to dumpFd
+ *
+ * @param nfds maximum fd expected in readFds
+ * @param readFds array of all fds to be read
+ * @param readCount dim of readFds
+ * @param dumpFd file where buffers will be pasted
+ * @param readFrom return parameter. An array of all fds in readFds that were ready and read from. It may be NULL.
+ * @return int the number of read fds, -1 if error
+ */
 ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom);
 
 int main(int argc, char *argv[])
@@ -170,13 +194,6 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-/**
- * @brief Create a child process and return the read and write ends of the pipes
- *
- * @param write Returns the write end of the pipe for the parent
- * @param read Returns the read end of the pipes for the parent
- * @return int 0 if success, 1 if error
- */
 int makeChild(int *write, int *read, pid_t *childPid)
 {
     int pipeRead[2], pipeWrite[2];
@@ -233,16 +250,6 @@ int makeChild(int *write, int *read, pid_t *childPid)
     return 0;
 }
 
-/**
- * @brief Get the buffer of fds with status ready and write the outputs to dumpFd
- *
- * @param nfds maximum fd expected in readFds
- * @param readFds array of all fds to be read
- * @param readCount dim of readFds
- * @param dumpFd file where buffers will be pasted
- * @param readFrom return parameter. An array of all fds in readFds that were ready and read from. It may be NULL.
- * @return int the number of read fds, -1 if error
- */
 ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom)
 {
     int index = 0;

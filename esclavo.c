@@ -16,7 +16,7 @@
  */
 void removeNewLine(char *s);
 
-int main(int argc, char *argv[])
+int main()
 {
     /**
      * @brief The input string

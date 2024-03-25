@@ -31,7 +31,7 @@
  * @param read Returns the read end of the pipes for the parent
  * @return int 0 if success, 1 if error
  */
-int makeChild(int *write, int *read, int *childPid);
+int makeChild(int *write, int *read);
 /**
  * @brief Set the file descriptors in fdVector in a fd_set
  *
@@ -96,7 +96,6 @@ int main(int argc, char *argv[])
         childrenCount = MIN(MAX_CHILDREN, MAX(MIN_CHILDREN, math));
     }
 
-    pid_t childPids[MAX_CHILDREN] = {0};
     int fdWrite[MAX_CHILDREN];
     int fdRead[MAX_CHILDREN];
     /**
@@ -107,7 +106,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < childrenCount; i++)
     {
-        if (makeChild(((int *)fdWrite) + i, ((int *)fdRead) + i, ((int *)childPids) + i))
+        if (makeChild(((int *)fdWrite) + i, ((int *)fdRead) + i))
         {
             perror("makeChild");
 
@@ -194,7 +193,7 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-int makeChild(int *write, int *read, pid_t *childPid)
+int makeChild(int *write, int *read)
 {
     int pipeRead[2], pipeWrite[2];
     if (pipe(pipeRead) || pipe(pipeWrite))
@@ -222,9 +221,6 @@ int makeChild(int *write, int *read, pid_t *childPid)
     }
     else
     {
-        // Set child's pid
-        *childPid = getpid();
-
         // Ensure child dies upon father's termination
         prctl(PR_SET_PDEATHSIG, SIGKILL);
 

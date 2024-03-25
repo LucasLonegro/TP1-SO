@@ -12,8 +12,8 @@
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-#define MIN_CHILDS 5
-#define MAX_CHILDS 20
+#define MIN_CHILDREN 5
+#define MAX_CHILDREN 20
 
 int main(int argc, char *argv[])
 {
@@ -39,10 +39,10 @@ int main(int argc, char *argv[])
     int fileCount = argc - 1;
 
     int childrenCount = fileCount;
-    if (fileCount > MIN_CHILDS)
+    if (fileCount > MIN_CHILDREN)
     {
         int math = fileCount / 10;
-        childrenCount = MIN(MAX_CHILDS, MAX(MIN_CHILDS, math));
+        childrenCount = MIN(MAX_CHILDREN, MAX(MIN_CHILDREN, math));
     }
 
     // Unlink the shared memory

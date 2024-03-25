@@ -25,6 +25,29 @@
                 "kind": "build",
                 "isDefault": true
             }
+        },
+        {
+            "type": "cppbuild",
+            "label": "Docker: Debug project",
+            "command": "docker",
+            "args": [
+                "run",
+                "--rm",
+                "-v",
+                "${workspaceFolder}:/app",
+                "agodio/itba-so:2.0",
+                "/bin/make",
+                "-C",
+                "/app",
+                "debug"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build"
         }
     ],
     "inputs": [

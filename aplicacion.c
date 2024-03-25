@@ -247,7 +247,7 @@ int makeChild(int *write, int *read, pid_t ppid)
         }
 
         // Dup stdin and stdout to parent's write and read pipes, respectively
-        if (dup2(ptoc[READ_END], STDIN_FILENO) == -1 || dup2(ctop[WRITE_END], STDOUT_FILENO) == -1)
+        if (dup2(ptoc[READ_END], STDIN_FILENO) < 0 || dup2(ctop[WRITE_END], STDOUT_FILENO) < 0)
         {
             return 1;
         }
@@ -269,7 +269,7 @@ ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *r
 
     fd_set reading = makeFdSet(readFds, readCount);
 
-    if (select(nfds, &reading, NULL, NULL, NULL) == -1)
+    if (select(nfds, &reading, NULL, NULL, NULL) < 0)
     {
         return -1;
     }
@@ -279,13 +279,13 @@ ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *r
         // Check which read fd are ready (the child has finished processing a file)
         if (FD_ISSET(readFds[i], &reading))
         {
-            if (readFrom != NULL)
+            if (readFrom)
             {
                 readFrom[index++] = i;
             }
 
-            // read the child's output
-            if (read(readFds[i], buffer, sizeof(buffer)) == -1)
+            // Read the child's output
+            if (read(readFds[i], buffer, sizeof(buffer)) < 0)
             {
                 return -1;
             }

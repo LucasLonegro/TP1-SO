@@ -200,8 +200,10 @@ int main(int argc, char *argv[])
 
 int makeChild(int *write, int *read, pid_t ppid)
 {
-    int pipeRead[2], pipeWrite[2];
-    if (pipe(pipeRead) || pipe(pipeWrite))
+    int ptoc[2];
+    int ctop[2];
+
+    if (pipe(ptoc) || pipe(ctop))
     {
         return 1;
     }
@@ -215,14 +217,14 @@ int makeChild(int *write, int *read, pid_t ppid)
     if (pid)
     {
         // Close the parent's unused ends of the pipes
-        if (close(pipeWrite[READ_END]) || close(pipeRead[WRITE_END]))
+        if (close(ptoc[READ_END]) || close(ctop[WRITE_END]))
         {
             return 1;
         }
 
         // Set return values
-        *write = pipeWrite[1];
-        *read = pipeRead[0];
+        *write = ptoc[WRITE_END];
+        *read = ctop[READ_END];
     }
     else
     {
@@ -239,13 +241,13 @@ int makeChild(int *write, int *read, pid_t ppid)
         }
 
         // Close the child's unused ends of the pipes
-        if (close(pipeWrite[WRITE_END]) || close(pipeRead[READ_END]))
+        if (close(ptoc[WRITE_END]) || close(ctop[READ_END]))
         {
             return 1;
         }
 
         // Dup stdin and stdout to parent's write and read pipes, respectively
-        if (dup2(pipeWrite[READ_END], STDIN_FILENO) == -1 || dup2(pipeRead[WRITE_END], STDOUT_FILENO) == -1)
+        if (dup2(ptoc[READ_END], STDIN_FILENO) == -1 || dup2(ctop[WRITE_END], STDOUT_FILENO) == -1)
         {
             return 1;
         }

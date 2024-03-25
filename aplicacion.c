@@ -203,7 +203,7 @@ int makeChild(int *write, int *read, pid_t ppid)
     int ptoc[2];
     int ctop[2];
 
-    if (pipe(ptoc) || pipe(ctop))
+    if (pipe(ctop) || pipe(ptoc))
     {
         return 1;
     }

@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 
     puts(shmName);
 
-    int fileCount = argc - 1;
+    const int fileCount = argc - 1;
 
     int childrenCount = fileCount;
     if (fileCount > MIN_CHILDREN)

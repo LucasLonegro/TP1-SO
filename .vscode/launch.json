@@ -11,7 +11,8 @@
             "target": "./bin/md5",
             "arguments": "${input:argv}",
             "cwd": "${workspaceRoot}",
-            "valuesFormatting": "parseText"
+            "valuesFormatting": "parseText",
+            "preLaunchTask": "Docker: Debug project"
         }
     ],
     "inputs": [

@@ -44,7 +44,7 @@ fd_set makeFdSet(int *fdVector, int dim);
 /**
  * @brief Get the buffer of fds with status ready and write the outputs to dumpFd
  *
- * @param nfds maximum fd expected in readFds
+ * @param nfds one more than maximum fd expected in readFds
  * @param readFds array of all fds to be read
  * @param readCount dim of readFds
  * @param dumpFd file where buffers will be pasted
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
     while (processCount < fileCount)
     {
         int childrenReady[MAX_CHILDREN];
-        int count = forwardPipes(nfds, fdRead, childrenCount, output, childrenReady);
+        int count = forwardPipes(nfds + 1, fdRead, childrenCount, output, childrenReady);
         if (count < 0)
         {
             perror("forwardPipes");

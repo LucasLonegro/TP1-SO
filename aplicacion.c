@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        if (*wp > nfds)
+        if (*rp > nfds)
         {
-            nfds = *wp;
+            nfds = *rp;
         }
 
         // Give each child its initial file to handle

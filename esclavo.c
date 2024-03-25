@@ -25,7 +25,7 @@ int main()
     /**
      * @brief The command string to execute
      */
-    char cmd[sizeof("md5sum ") - 1 /* String without \0 */ + MAX_PATH];
+    char cmd[sizeof("md5sum ") /* String with \0 */ + MAX_PATH];
     /**
      * @brief The output string
      */
@@ -33,14 +33,14 @@ int main()
 
     while (1)
     {
-        int n = read(STDIN_FILENO, input, sizeof(input));
+        ssize_t n = read(STDIN_FILENO, input, sizeof(input));
         if (n == sizeof(input) || n < 0)
         {
             // Unexpected error
             write(STDOUT_FILENO, "", 1);
 
             // Parent is responsible for ensuring only one filename is on STDIN at a time
-            fflush(STDIN_FILENO);
+            fflush(stdin);
 
             continue;
         }

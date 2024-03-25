@@ -61,12 +61,25 @@ int main()
 
         // Call md5sum
         FILE *md5sum = popen(cmd, "r");
+        if (!md5sum)
+        {
+            // Inform that the md5sum command could not be executed
+            int len = snprintf(cmd, sizeof(cmd), "Could not execute: %s", input);
+            write(STDOUT_FILENO, cmd, len + 1);
+
+            continue;
+        }
 
         // Parse the md5sum output and write it into stdout
         if (fgets(output, sizeof(output), md5sum))
         {
             removeNewLine(output);
             write(STDOUT_FILENO, output, strlen(output) + 1);
+        }
+        else
+        {
+            int len = snprintf(cmd, sizeof(cmd), "Could not handle: %s", input);
+            write(STDOUT_FILENO, cmd, len + 1);
         }
 
         pclose(md5sum);

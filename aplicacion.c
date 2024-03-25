@@ -18,7 +18,7 @@
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-#define MIN_CHILDS 5
+#define MIN_CHILDREN 5
 #define MAX_CHILDREN 20
 #define READ_END 0
 #define WRITE_END 1
@@ -90,10 +90,10 @@ int main(int argc, char *argv[])
     const int fileCount = argc - 1;
 
     int childrenCount = fileCount;
-    if (fileCount > MIN_CHILDS)
+    if (fileCount > MIN_CHILDREN)
     {
         int math = fileCount / 10;
-        childrenCount = MIN(MAX_CHILDREN, MAX(MIN_CHILDS, math));
+        childrenCount = MIN(MAX_CHILDREN, MAX(MIN_CHILDREN, math));
     }
 
     pid_t childPids[MAX_CHILDREN] = {0};

@@ -36,10 +36,9 @@
  *
  * @param write Returns the write end of the pipe for the parent
  * @param read Returns the read end of the pipes for the parent
- * @param ppid The parent's process id, used to ensure the child dies upon parent's termination
  * @return int 0 if success, 1 if error
  */
-int makeChild(int *write, int *read, pid_t ppid);
+int makeChild(int *write, int *read);
 /**
  * @brief Set the file descriptors in fdVector in a fd_set
  *
@@ -120,14 +119,13 @@ int main(int argc, char *argv[])
      * @see man 2 select
      */
     int nfds = 0;
-    const pid_t ppid = getpid();
 
     for (int i = 0; i < childrenCount; i++)
     {
         int *wp = fdWrite + i;
         int *rp = fdRead + i;
 
-        if (makeChild(wp, rp, ppid))
+        if (makeChild(wp, rp))
         {
             perror("makeChild");
 
@@ -184,11 +182,19 @@ int main(int argc, char *argv[])
         processCount += count;
 
         // Send the next file to each child ready while there are files to process
-        for (int i = 0; i < count && nextFile <= fileCount; i++, nextFile++)
+        for (int i = 0; i < count; i++)
         {
-            char *filename = argv[nextFile];
+            int ptoc = fdWrite[childrenReady[i]];
 
-            ssize_t written = write(fdWrite[childrenReady[i]], filename, strlen(filename) + 1);
+            if (nextFile > fileCount)
+            {
+                close(ptoc);
+                continue;
+            }
+
+            char *filename = argv[nextFile++];
+
+            ssize_t written = write(ptoc, filename, strlen(filename));
             if (written < 0)
             {
                 perror("write");
@@ -214,7 +220,7 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-int makeChild(int *write, int *read, pid_t ppid)
+int makeChild(int *write, int *read)
 {
     int ptoc[2];
     int ctop[2];
@@ -244,18 +250,6 @@ int makeChild(int *write, int *read, pid_t ppid)
     }
     else
     {
-        // Ensure child dies upon father's termination
-        if (prctl(PR_SET_PDEATHSIG, SIGKILL) < 0)
-        {
-            return 1;
-        }
-
-        // Check if the parent is still alive
-        if (getppid() != ppid)
-        {
-            return 1;
-        }
-
         // Close the child's unused ends of the pipes
         if (close(ptoc[WRITE_END]) || close(ctop[READ_END]))
         {

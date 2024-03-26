@@ -37,9 +37,9 @@ int main()
      */
     char output[32 /* Hash */ + 2 /* Spaces */ + MAX_PATH + 1 /* \0 */];
 
-    while (1)
+    ssize_t n;
+    while ((n = read(STDIN_FILENO, input, sizeof(input))))
     {
-        ssize_t n = read(STDIN_FILENO, input, sizeof(input));
         D("Received %ld bytes\n", n);
 
         if (n == sizeof(input) || n < 0)

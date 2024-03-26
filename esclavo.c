@@ -37,6 +37,9 @@ int main()
      */
     char output[32 /* Hash */ + 2 /* Spaces */ + MAX_PATH + 1 /* \0 */];
 
+    // Flush stdout with every \n if it is not a tty
+    setlinebuf(stdout);
+
     ssize_t n;
     while ((n = read(STDIN_FILENO, input, sizeof(input))))
     {
@@ -44,11 +47,11 @@ int main()
 
         if (n == sizeof(input) || n < 0)
         {
-            // Unexpected error
-            write(STDOUT_FILENO, "", 1);
-
-            // Parent is responsible for ensuring only one filename is on STDIN at a time
+            // Ignore the rest of the input
             fflush(stdin);
+
+            // Unexpected error
+            puts("File path too long");
 
             continue;
         }
@@ -58,8 +61,7 @@ int main()
         if (stat(input, &fileData) || S_ISDIR(fileData.st_mode))
         {
             // Inform that the path given did not refer to a file this process could read
-            int len = snprintf(cmd, sizeof(cmd), "Could not read: %s", input);
-            write(STDOUT_FILENO, cmd, len + 1);
+            printf("Could not read: %s\n", input);
 
             continue;
         }
@@ -72,8 +74,7 @@ int main()
         if (!md5sum)
         {
             // Inform that the md5sum command could not be executed
-            int len = snprintf(cmd, sizeof(cmd), "Could not execute: %s", input);
-            write(STDOUT_FILENO, cmd, len + 1);
+            printf("Could not execute: %s\n", input);
 
             continue;
         }
@@ -82,13 +83,11 @@ int main()
         if (fgets(output, sizeof(output), md5sum))
         {
             removeNewLine(output);
-            write(STDOUT_FILENO, output, strlen(output) + 1);
-            D("Wrote %s\n", output);
+            printf("%s", output);
         }
         else
         {
-            int len = snprintf(cmd, sizeof(cmd), "Could not handle: %s", input);
-            write(STDOUT_FILENO, cmd, len + 1);
+            printf("Could not handle: %s\n", input);
         }
 
         pclose(md5sum);

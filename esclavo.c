@@ -41,7 +41,7 @@ int main()
     setlinebuf(stdout);
 
     ssize_t n;
-    while ((n = read(STDIN_FILENO, input, sizeof(input))))
+    while ((n = read(STDIN_FILENO, input, sizeof(input) - 1)))
     {
         D("Received %ld bytes\n", n);
 
@@ -55,6 +55,9 @@ int main()
 
             continue;
         }
+
+        // If needed, remove \n from the input and assert the null terminator
+        input[input[n - 1] == '\n' ? n - 1 : n] = 0;
 
         // Check whether the given file can be read in order to calculate its md5 hash
         struct stat fileData;
@@ -82,7 +85,6 @@ int main()
         // Parse the md5sum output and write it into stdout
         if (fgets(output, sizeof(output), md5sum))
         {
-            removeNewLine(output);
             printf("%s", output);
         }
         else

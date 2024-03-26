@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
         }
 
         // Give each child its initial file to handle
-        ssize_t written = write(*wp, argv[i + 1], strlen(argv[i + 1]) + 1);
+        ssize_t written = write(*wp, argv[i + 1], strlen(argv[i + 1]));
         if (written < 0)
         {
             perror("write");
@@ -295,13 +295,18 @@ ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *r
             }
 
             // Read the child's output
-            if (read(readFds[i], buffer, sizeof(buffer)) < 0)
+            ssize_t n = read(readFds[i], buffer, sizeof(buffer) - 1);
+            if (n < 0)
             {
                 return -1;
             }
 
+            // Assert the null terminator
+            buffer[n] = 0;
+
             // Write to the output file
-            if (fprintf(dumpFd, "%s\n", buffer) < 0)
+            // (the buffer _should_ include an \n at the end)
+            if (fprintf(dumpFd, "%s", buffer) < 0)
             {
                 return -1;
             }

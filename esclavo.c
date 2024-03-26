@@ -15,13 +15,6 @@
 #define D(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
-/**
- * @brief Search for a newline character in the string and replace it with a null terminator
- *
- * @param s The string to modify
- */
-void removeNewLine(char *s);
-
 int main()
 {
     /**
@@ -99,11 +92,4 @@ int main()
     D("Exiting\n");
 
     exit(0);
-}
-
-void removeNewLine(char *s)
-{
-    while (*s != '\n' && *s)
-        s++;
-    *s = 0;
 }

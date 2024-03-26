@@ -31,7 +31,7 @@ int main()
     /**
      * @brief The command string to execute
      */
-    char cmd[sizeof("md5sum ") /* String with \0 */ + MAX_PATH];
+    char cmd[sizeof("md5sum \"\"") /* String with \0 */ + MAX_PATH];
     /**
      * @brief The output string
      */
@@ -65,7 +65,7 @@ int main()
         }
 
         // Write the verified readable file into an md5sum command
-        snprintf(cmd, sizeof(cmd), "md5sum %s", input);
+        snprintf(cmd, sizeof(cmd), "md5sum \"%s\"", input);
 
         // Call md5sum
         FILE *md5sum = popen(cmd, "r");

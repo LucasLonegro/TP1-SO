@@ -36,7 +36,7 @@ int main()
     ssize_t n;
     while ((n = read(STDIN_FILENO, input, sizeof(input) - 1)))
     {
-        if (n == sizeof(input) || n < 0)
+        if (n == sizeof(input) - 1 || n < 0)
         {
             // Ignore the rest of the input
             fflush(stdin);

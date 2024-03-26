@@ -85,6 +85,7 @@ int main()
         // Parse the md5sum output and write it into stdout
         if (fgets(output, sizeof(output), md5sum))
         {
+            // output _should_ already include an \n at the end
             printf("%s", output);
         }
         else

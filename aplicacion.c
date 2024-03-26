@@ -25,6 +25,12 @@
 #define BUFFER_SIZE 4096
 #define SHM_SIZE 0x10000
 
+#ifndef DEBUG
+#define D(...)
+#else
+#define D(...) fprintf(stderr, __VA_ARGS__)
+#endif
+
 /**
  * @brief Create a child process and return the read and write ends of the pipes
  *

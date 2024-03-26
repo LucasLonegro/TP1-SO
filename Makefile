@@ -17,7 +17,7 @@ esclavo: esclavo.c
 vista: vista.c
 	$(CC) $(ALL_CFLAGS) $< -o $(OUT_DIR)/$@
 
-debug: CFLAGS = -g
+debug: CFLAGS = -g -DDEBUG
 debug: all
 
 valgrind: debug

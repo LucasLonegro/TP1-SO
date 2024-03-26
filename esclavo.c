@@ -9,6 +9,12 @@
 
 #define MAX_PATH 4096
 
+#ifndef DEBUG
+#define D(...)
+#else
+#define D(...) fprintf(stderr, __VA_ARGS__)
+#endif
+
 /**
  * @brief Search for a newline character in the string and replace it with a null terminator
  *
@@ -34,6 +40,8 @@ int main()
     while (1)
     {
         ssize_t n = read(STDIN_FILENO, input, sizeof(input));
+        D("Received %ld bytes\n", n);
+
         if (n == sizeof(input) || n < 0)
         {
             // Unexpected error
@@ -75,6 +83,7 @@ int main()
         {
             removeNewLine(output);
             write(STDOUT_FILENO, output, strlen(output) + 1);
+            D("Wrote %s\n", output);
         }
         else
         {
@@ -84,6 +93,8 @@ int main()
 
         pclose(md5sum);
     }
+
+    D("Exiting\n");
 
     exit(0);
 }

@@ -23,6 +23,7 @@
 #define READ_END 0
 #define WRITE_END 1
 #define BUFFER_SIZE 4096
+#define SHM_SIZE 0x10000
 
 /**
  * @brief Create a child process and return the read and write ends of the pipes
@@ -71,6 +72,15 @@ int main(int argc, char *argv[])
         perror("shm_open");
 
         // Nothing to free
+
+        exit(1);
+    }
+
+    if (ftruncate(shmid, SHM_SIZE))
+    {
+        perror("ftruncate");
+
+        shm_unlink(shmName);
 
         exit(1);
     }

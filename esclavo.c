@@ -36,8 +36,6 @@ int main()
     ssize_t n;
     while ((n = read(STDIN_FILENO, input, sizeof(input) - 1)))
     {
-        D("Received %ld bytes\n", n);
-
         if (n == sizeof(input) || n < 0)
         {
             // Ignore the rest of the input
@@ -88,8 +86,6 @@ int main()
 
         pclose(md5sum);
     }
-
-    D("Exiting\n");
 
     exit(0);
 }

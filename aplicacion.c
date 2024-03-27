@@ -36,9 +36,9 @@
  *
  * @param write Returns the write end of the pipe for the parent
  * @param read Returns the read end of the pipes for the parent
- * @return int 0 if success, 1 if error
+ * @return int The child pid, no return if child, 0 if error
  */
-int makeChild(int *write, int *read);
+pid_t makeChild(int *write, int *read);
 /**
  * @brief Set the file descriptors in fdVector in a fd_set
  *
@@ -58,6 +58,17 @@ fd_set makeFdSet(int *fdVector, int dim);
  * @return int the number of read fds, -1 if error
  */
 ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom);
+/**
+ * @brief Remove the child at index i from the arrays write and read
+ *
+ * @param i Child index
+ * @param children The children pids array
+ * @param write The children write fds array
+ * @param read The children read fds array
+ * @param childs The number of children (dim of children, write and read)
+ * @return int The new number of children
+ */
+int removeChildFromArrays(int i, pid_t *children, int *write, int *read, int childs);
 
 int main(int argc, char *argv[])
 {
@@ -112,8 +123,9 @@ int main(int argc, char *argv[])
         childrenCount = MIN(MAX_CHILDREN, MAX(MIN_CHILDREN, math));
     }
 
-    int fdWrite[MAX_CHILDREN];
-    int fdRead[MAX_CHILDREN];
+    pid_t children[MAX_CHILDREN];
+    int childrenWriteFD[MAX_CHILDREN];
+    int childrenReadFD[MAX_CHILDREN];
     /**
      * @brief Highest file descriptor for the select() function
      * @see man 2 select
@@ -122,10 +134,10 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < childrenCount; i++)
     {
-        int *wp = fdWrite + i;
-        int *rp = fdRead + i;
+        int *wp = childrenWriteFD + i;
+        int *rp = childrenReadFD + i;
 
-        if (makeChild(wp, rp))
+        if (!(children[i] = makeChild(wp, rp)))
         {
             perror("makeChild");
 
@@ -168,7 +180,7 @@ int main(int argc, char *argv[])
     while (processCount < fileCount)
     {
         int childrenReady[MAX_CHILDREN];
-        int count = forwardPipes(nfds + 1, fdRead, childrenCount, output, childrenReady);
+        int count = forwardPipes(nfds + 1, childrenReadFD, childrenCount, output, childrenReady);
         if (count < 0)
         {
             perror("forwardPipes");
@@ -184,11 +196,13 @@ int main(int argc, char *argv[])
         // Send the next file to each child ready while there are files to process
         for (int i = 0; i < count; i++)
         {
-            int ptoc = fdWrite[childrenReady[i]];
+            int child = childrenReady[i];
+            int ptoc = childrenWriteFD[child];
 
             if (nextFile > fileCount)
             {
                 close(ptoc);
+                childrenCount = removeChildFromArrays(child, children, childrenWriteFD, childrenReadFD, childrenCount);
                 continue;
             }
 
@@ -220,20 +234,20 @@ int main(int argc, char *argv[])
     exit(0);
 }
 
-int makeChild(int *write, int *read)
+pid_t makeChild(int *write, int *read)
 {
     int ptoc[2];
     int ctop[2];
 
     if (pipe(ctop) || pipe(ptoc))
     {
-        return 1;
+        return 0;
     }
 
     pid_t pid = fork();
     if (pid < 0)
     {
-        return 1;
+        return 0;
     }
 
     if (pid)
@@ -241,31 +255,33 @@ int makeChild(int *write, int *read)
         // Close the parent's unused ends of the pipes
         if (close(ptoc[READ_END]) || close(ctop[WRITE_END]))
         {
-            return 1;
+            return 0;
         }
 
         // Set return values
         *write = ptoc[WRITE_END];
         *read = ctop[READ_END];
+
+        return pid;
     }
     else
     {
         // Close the child's unused ends of the pipes
         if (close(ptoc[WRITE_END]) || close(ctop[READ_END]))
         {
-            return 1;
+            return 0;
         }
 
         // Dup stdin and stdout to parent's write and read pipes, respectively
         if (dup2(ptoc[READ_END], STDIN_FILENO) < 0 || dup2(ctop[WRITE_END], STDOUT_FILENO) < 0)
         {
-            return 1;
+            return 0;
         }
 
         char *const argv[] = {"./esclavo", NULL};
         if (execv("./bin/esclavo", argv))
         {
-            return 1;
+            return 0;
         }
     }
 
@@ -325,4 +341,12 @@ fd_set makeFdSet(int *fdVector, int dim)
         FD_SET(fdVector[i], &ans);
     }
     return ans;
+}
+
+int removeChildFromArrays(int i, pid_t *children, int *write, int *read, int childs)
+{
+    children[i] = children[childs - 1];
+    write[i] = write[childs - 1];
+    read[i] = read[childs - 1];
+    return childs - 1;
 }

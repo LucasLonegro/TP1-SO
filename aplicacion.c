@@ -2,6 +2,7 @@
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 
 #include <fcntl.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +31,12 @@
 #else
 #define D(...) fprintf(stderr, __VA_ARGS__)
 #endif
+
+struct shared_data
+{
+    sem_t sem;
+    char msg[100];
+};
 
 /**
  * @brief Create a child process and return the read and write ends of the pipes
@@ -77,6 +84,20 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    // Open a semaphore with an unique name
+    const char semName[255] = "/md5_sem_0";
+    snprintf((char *)semName, sizeof(semName) - 1, "/md5_sem_%d", getpid());
+
+    sem_t *sem = sem_open(semName, O_CREAT | O_EXCL, 0666, 0);
+    if (sem == SEM_FAILED)
+    {
+        perror("sem_open");
+
+        // Nothing to free
+
+        exit(1);
+    }
+
     // Open a shared memory with an unique name
     const char shmName[255] = "/md5_shm_0";
     snprintf((char *)shmName, sizeof(shmName) - 1, "/md5_shm_%d", getpid());
@@ -86,7 +107,7 @@ int main(int argc, char *argv[])
     {
         perror("shm_open");
 
-        // Nothing to free
+        sem_unlink(semName);
 
         exit(1);
     }
@@ -95,6 +116,7 @@ int main(int argc, char *argv[])
     {
         perror("ftruncate");
 
+        sem_unlink(semName);
         shm_unlink(shmName);
 
         exit(1);
@@ -108,6 +130,7 @@ int main(int argc, char *argv[])
     {
         perror("fopen");
 
+        sem_unlink(semName);
         shm_unlink(shmName);
 
         exit(1);
@@ -140,6 +163,7 @@ int main(int argc, char *argv[])
         {
             perror("makeChild");
 
+            sem_unlink(semName);
             shm_unlink(shmName);
             fclose(outputFile);
 
@@ -157,6 +181,7 @@ int main(int argc, char *argv[])
         {
             perror("write");
 
+            sem_unlink(semName);
             shm_unlink(shmName);
             fclose(outputFile);
 
@@ -187,6 +212,7 @@ int main(int argc, char *argv[])
         {
             perror("awaitPipes");
 
+            sem_unlink(semName);
             shm_unlink(shmName);
             fclose(outputFile);
 
@@ -209,6 +235,7 @@ int main(int argc, char *argv[])
             {
                 perror("read");
 
+                sem_unlink(semName);
                 shm_unlink(shmName);
                 fclose(outputFile);
 
@@ -224,6 +251,7 @@ int main(int argc, char *argv[])
             {
                 perror("fprintf");
 
+                sem_unlink(semName);
                 shm_unlink(shmName);
                 fclose(outputFile);
 
@@ -235,6 +263,7 @@ int main(int argc, char *argv[])
             {
                 perror("fprintf");
 
+                sem_unlink(semName);
                 shm_unlink(shmName);
                 fclose(outputFile);
 
@@ -258,6 +287,7 @@ int main(int argc, char *argv[])
             {
                 perror("write");
 
+                sem_unlink(semName);
                 shm_unlink(shmName);
                 fclose(outputFile);
 

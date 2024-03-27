@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    // close results file
+    // Close results file
     fclose(output);
 
     // Unlink the shared memory
@@ -319,7 +319,7 @@ ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *r
 fd_set makeFdSet(int *fdVector, int dim)
 {
     fd_set ans;
-    FD_ZERO(&ans); // good practice
+    FD_ZERO(&ans); // Good practice
     for (int i = 0; i < dim; i++)
     {
         FD_SET(fdVector[i], &ans);

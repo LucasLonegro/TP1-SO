@@ -22,8 +22,8 @@
 #define MAX_CHILDREN 20
 #define READ_END 0
 #define WRITE_END 1
-#define BUFFER_SIZE 4096
-#define SHM_SIZE 0x10000
+#define BUFFER_SIZE 8192
+#define SHM_SIZE 0x4000000
 
 #ifndef DEBUG
 #define D(...)
@@ -50,14 +50,13 @@ fd_set makeFdSet(int *fdVector, int dim);
 /**
  * @brief Get the buffer of fds with status ready and write the outputs to dumpFd
  *
- * @param nfds one more than maximum fd expected in readFds
- * @param readFds array of all fds to be read
- * @param readCount dim of readFds
- * @param dumpFd file where buffers will be pasted
- * @param readFrom return parameter. An array of all fds in readFds that were ready and read from. It may be NULL.
+ * @param nfds one more than maximum fd expected in childrenReadFD
+ * @param childrenReadFD array of all fds to be read
+ * @param readCount dim of childrenReadFD
+ * @param ready return parameter. An array of all fds in childrenReadFD that are ready
  * @return int the number of read fds, -1 if error
  */
-ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom);
+ssize_t awaitPipes(int nfds, int *childrenReadFD, int readCount, int *ready);
 /**
  * @brief Remove the child at index i from the arrays write and read
  *
@@ -104,8 +103,8 @@ int main(int argc, char *argv[])
     puts(shmName);
 
     // Create output file
-    FILE *output = fopen("./bin/output.txt", "w");
-    if (!output)
+    FILE *outputFile = fopen("./bin/output.txt", "w");
+    if (!outputFile)
     {
         perror("fopen");
 
@@ -142,7 +141,7 @@ int main(int argc, char *argv[])
             perror("makeChild");
 
             shm_unlink(shmName);
-            fclose(output);
+            fclose(outputFile);
 
             exit(1);
         }
@@ -159,11 +158,14 @@ int main(int argc, char *argv[])
             perror("write");
 
             shm_unlink(shmName);
-            fclose(output);
+            fclose(outputFile);
 
             exit(1);
         }
     }
+
+    // The assignment says to wait for view to connect to the shared memory
+    sleep(2);
 
     /**
      * @brief The index (in argv) of the next file to be processed by a child
@@ -180,23 +182,66 @@ int main(int argc, char *argv[])
     while (processCount < fileCount)
     {
         int childrenReady[MAX_CHILDREN];
-        int count = forwardPipes(nfds + 1, childrenReadFD, childrenCount, output, childrenReady);
+        int count = awaitPipes(nfds + 1, childrenReadFD, childrenCount, childrenReady);
         if (count < 0)
         {
-            perror("forwardPipes");
+            perror("awaitPipes");
 
             shm_unlink(shmName);
-            fclose(output);
+            fclose(outputFile);
 
             exit(1);
         }
 
         processCount += count;
 
-        // Send the next file to each child ready while there are files to process
+        char buffer[BUFFER_SIZE];
+
         for (int i = 0; i < count; i++)
         {
             int child = childrenReady[i];
+
+            // Read each child's message and write it to the results files
+            int ctop = childrenReadFD[child];
+
+            ssize_t n = read(ctop, buffer, sizeof(buffer) - 1);
+            if (n < 0)
+            {
+                perror("read");
+
+                shm_unlink(shmName);
+                fclose(outputFile);
+
+                exit(1);
+            }
+
+            // Assert the null terminator
+            // (the buffer _should_ include an \n at the end)
+            buffer[n] = 0;
+
+            // Write to the output file
+            if (fprintf(outputFile, "%s", buffer) < 0)
+            {
+                perror("fprintf");
+
+                shm_unlink(shmName);
+                fclose(outputFile);
+
+                exit(1);
+            }
+
+            // Write to the shared memory
+            if (write(shmid, buffer, n) < 0)
+            {
+                perror("fprintf");
+
+                shm_unlink(shmName);
+                fclose(outputFile);
+
+                exit(1);
+            }
+
+            // Send the next file to each child ready while there are files to process
             int ptoc = childrenWriteFD[child];
 
             if (nextFile > fileCount)
@@ -214,22 +259,16 @@ int main(int argc, char *argv[])
                 perror("write");
 
                 shm_unlink(shmName);
-                fclose(output);
+                fclose(outputFile);
 
                 exit(1);
             }
         }
     }
 
-    // Close results file
-    fclose(output);
-
-    // Unlink the shared memory
-    if (shm_unlink(shmName) < 0)
-    {
-        perror("shm_unlink");
-        exit(1);
-    }
+    // Free opened resources
+    fclose(outputFile);
+    close(shmid);
 
     exit(0);
 }
@@ -288,12 +327,11 @@ pid_t makeChild(int *write, int *read)
     return 0;
 }
 
-ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom)
+ssize_t awaitPipes(int nfds, int *childrenReadFD, int readCount, int *ready)
 {
     int index = 0;
-    char buffer[BUFFER_SIZE] = {0};
 
-    fd_set reading = makeFdSet(readFds, readCount);
+    fd_set reading = makeFdSet(childrenReadFD, readCount);
 
     if (select(nfds, &reading, NULL, NULL, NULL) < 0)
     {
@@ -303,29 +341,9 @@ ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *r
     for (int i = 0; i < readCount; i++)
     {
         // Check which read fd are ready (the child has finished processing a file)
-        if (FD_ISSET(readFds[i], &reading))
+        if (FD_ISSET(childrenReadFD[i], &reading))
         {
-            if (readFrom)
-            {
-                readFrom[index++] = i;
-            }
-
-            // Read the child's output
-            ssize_t n = read(readFds[i], buffer, sizeof(buffer) - 1);
-            if (n < 0)
-            {
-                return -1;
-            }
-
-            // Assert the null terminator
-            buffer[n] = 0;
-
-            // Write to the output file
-            // (the buffer _should_ include an \n at the end)
-            if (fprintf(dumpFd, "%s", buffer) < 0)
-            {
-                return -1;
-            }
+            ready[index++] = i;
         }
     }
 

@@ -32,6 +32,6 @@ pre-build:
 	@mkdir -p $(OUT_DIR)
 
 clean:
-	@rm -rf $(OUT_DIR)/* report.tasks
+	@rm -rf $(OUT_DIR)/* report.tasks $(OUT_DIR)
 
 .PHONY: all clean

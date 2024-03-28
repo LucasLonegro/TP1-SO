@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -O2
-ALL_CFLAGS = -pedantic -Wall -Wextra -std=gnu17 -fdiagnostics-color=always $(CFLAGS)
+ALL_CFLAGS = -pthread -Wall -Wextra -std=gnu17 -fdiagnostics-color=always $(CFLAGS)
 
 OUT_DIR = bin
 

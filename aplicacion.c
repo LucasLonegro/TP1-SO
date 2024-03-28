@@ -4,7 +4,6 @@
 #include <fcntl.h>
 #include <semaphore.h>
 #include <signal.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,9 +34,8 @@
 
 typedef struct shared_data
 {
-    sem_t sem;
-    bool connected;
-    char content[SHM_SIZE - sizeof(sem_t)];
+    sem_t sem1, sem2;
+    char content[SHM_SIZE - 2 * sizeof(sem_t)];
 } shared_data;
 
 /**
@@ -119,10 +117,18 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    data->connected = false;
+    // Create the two anonymous semaphores
+    if (sem_init(&data->sem1, 1, 0) < 0)
+    {
+        perror("sem_init");
 
-    // Create an anonymous semaphore
-    if (sem_init(&data->sem, 1, 0) < 0)
+        munmap(data, SHM_SIZE);
+        shm_unlink(shmName);
+
+        exit(1);
+    }
+
+    if (sem_init(&data->sem2, 1, 1) < 0)
     {
         perror("sem_init");
 
@@ -135,13 +141,16 @@ int main(int argc, char *argv[])
     puts(shmName);
     fflush(stdout);
 
+    sleep(2);
+
     // Create output file
     FILE *outputFile = fopen("./bin/output.txt", "w");
     if (!outputFile)
     {
         perror("fopen");
 
-        sem_destroy(&data->sem);
+        sem_destroy(&data->sem1);
+        sem_destroy(&data->sem2);
         munmap(data, SHM_SIZE);
         shm_unlink(shmName);
 
@@ -175,7 +184,8 @@ int main(int argc, char *argv[])
         {
             perror("makeChild");
 
-            sem_destroy(&data->sem);
+            sem_destroy(&data->sem1);
+            sem_destroy(&data->sem2);
             munmap(data, SHM_SIZE);
             shm_unlink(shmName);
             fclose(outputFile);
@@ -194,19 +204,14 @@ int main(int argc, char *argv[])
         {
             perror("write");
 
-            sem_destroy(&data->sem);
+            sem_destroy(&data->sem1);
+            sem_destroy(&data->sem2);
             munmap(data, SHM_SIZE);
             shm_unlink(shmName);
             fclose(outputFile);
 
             exit(1);
         }
-    }
-
-    // The assignment says to wait for view to connect to the shared memory
-    if (isatty(STDOUT_FILENO))
-    {
-        sleep(5);
     }
 
     /**
@@ -220,7 +225,7 @@ int main(int argc, char *argv[])
     /**
      * @brief The shared memory content index
      */
-    char *contentWriter = data->content;
+    int writtenCount = 0;
 
     // Read from file descriptors as they become ready
     // Write to each ready read file descriptor's associated write file descriptor the next file for the child to manage
@@ -233,7 +238,8 @@ int main(int argc, char *argv[])
         {
             perror("awaitPipes");
 
-            sem_destroy(&data->sem);
+            sem_destroy(&data->sem1);
+            sem_destroy(&data->sem2);
             munmap(data, SHM_SIZE);
             shm_unlink(shmName);
             fclose(outputFile);
@@ -258,7 +264,8 @@ int main(int argc, char *argv[])
             {
                 perror("read");
 
-                sem_destroy(&data->sem);
+                sem_destroy(&data->sem1);
+                sem_destroy(&data->sem2);
                 munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
                 fclose(outputFile);
@@ -275,7 +282,8 @@ int main(int argc, char *argv[])
             {
                 perror("fprintf");
 
-                sem_destroy(&data->sem);
+                sem_destroy(&data->sem1);
+                sem_destroy(&data->sem2);
                 munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
                 fclose(outputFile);
@@ -284,22 +292,20 @@ int main(int argc, char *argv[])
             }
 
             // Write to the shared memory
-            if (data->connected)
+            writtenCount += sprintf(data->content + writtenCount, "%d: %s", cpid, buffer);
+
+            // Raise the semaphore for the view to read the shared memory
+            if (sem_post(&data->sem1))
             {
-                contentWriter += sprintf(contentWriter, "%d: %s", cpid, buffer) + 1;
+                perror("sem_post");
 
-                // Raise the semaphore for the view to read the shared memory
-                if (sem_post(&data->sem))
-                {
-                    perror("sem_post");
+                sem_destroy(&data->sem1);
+                sem_destroy(&data->sem2);
+                munmap(data, SHM_SIZE);
+                shm_unlink(shmName);
+                fclose(outputFile);
 
-                    sem_destroy(&data->sem);
-                    munmap(data, SHM_SIZE);
-                    shm_unlink(shmName);
-                    fclose(outputFile);
-
-                    exit(1);
-                }
+                exit(1);
             }
 
             // Send the next file to each child ready while there are files to process
@@ -319,7 +325,8 @@ int main(int argc, char *argv[])
             {
                 perror("write");
 
-                sem_destroy(&data->sem);
+                sem_destroy(&data->sem1);
+                sem_destroy(&data->sem2);
                 munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
                 fclose(outputFile);
@@ -329,31 +336,36 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Send an empty string to signal the end of the shared memory
-    if (data->connected)
+    if (sem_post(&data->sem1))
     {
-        *contentWriter = 0;
+        perror("sem_post");
 
-        if (sem_post(&data->sem))
-        {
-            perror("sem_post");
+        sem_destroy(&data->sem1);
+        sem_destroy(&data->sem2);
+        munmap(data, SHM_SIZE);
+        shm_unlink(shmName);
+        fclose(outputFile);
 
-            sem_destroy(&data->sem);
-            munmap(data, SHM_SIZE);
-            shm_unlink(shmName);
-            fclose(outputFile);
-
-            exit(1);
-        }
+        exit(1);
     }
 
-    // Free opened resources
-    if (!data->connected)
+    // Wait for vista to finish and free opened resources
+    if (sem_wait(&data->sem2) < 0)
     {
-        sem_destroy(&data->sem);
+        sem_destroy(&data->sem1);
+        sem_destroy(&data->sem2);
+        munmap(data, SHM_SIZE);
+        shm_unlink(shmName);
+        fclose(outputFile);
+        close(shmid);
+
+        exit(1);
     }
 
     munmap(data, SHM_SIZE);
+    sem_destroy(&data->sem1);
+    sem_destroy(&data->sem2);
+    shm_unlink(shmName);
     fclose(outputFile);
     close(shmid);
 

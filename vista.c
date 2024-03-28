@@ -23,8 +23,7 @@
 
 typedef struct shared_data
 {
-    sem_t sem;
-    bool connected;
+    sem_t sem1, sem2;
     char content[SHM_SIZE - sizeof(sem_t)];
 } shared_data;
 
@@ -72,24 +71,48 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    data->connected = true;
+    if (sem_wait(&data->sem2) < 0)
+    {
+        perror("sem_wait");
+
+        munmap(data, SHM_SIZE);
+        close(shmid);
+
+        exit(1);
+    }
 
     int werr;
-    char *reader = data->content;
-    while (!(werr = sem_wait(&data->sem)))
+    size_t n = 0;
+    int imp = 0;
+    char buffer[BUFFER_SIZE];
+    while (!(werr = sem_wait(&data->sem1)))
     {
-        D("Impatient boy\n");
-
-        size_t len = strlen(reader);
-        if (!len)
+        if (data->content[n] == 0)
         {
-            D("Empty string\n");
+            if (sem_post(&data->sem2) < 0)
+            {
+                perror("sem_post");
+
+                munmap(data, SHM_SIZE);
+                close(shmid);
+
+                exit(1);
+            }
             break;
         }
+        size_t len = 0;
 
-        printf("%s", reader);
+        while (data->content[n + len] != '\n')
+        {
+            len++;
+        }
+        memcpy(buffer, data->content + n, ++len);
+        buffer[len] = 0;
+        n += len;
 
-        reader += len + 1;
+        printf("%s", buffer);
+
+        imp++;
     }
 
     if (werr < 0)
@@ -98,7 +121,8 @@ int main(int argc, char *argv[])
     }
 
     D("Unmapping\n");
-    sem_destroy(&data->sem);
+    sem_destroy(&data->sem1);
+    sem_destroy(&data->sem2);
     munmap(data, SHM_SIZE);
     close(shmid);
 

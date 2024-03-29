@@ -97,14 +97,16 @@ int main(int argc, char *argv[])
 
                 exit(1);
             }
+
             break;
         }
-        size_t len = 0;
 
+        size_t len = 0;
         while (data->content[n + len] != '\n')
         {
             len++;
         }
+
         memcpy(buffer, data->content + n, ++len);
         buffer[len] = 0;
         n += len;

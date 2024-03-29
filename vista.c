@@ -24,7 +24,7 @@
 typedef struct shared_data
 {
     sem_t semData, semExit;
-    char content[SHM_SIZE - sizeof(sem_t)];
+    char content[SHM_SIZE - 2 * sizeof(sem_t)];
 } shared_data;
 
 int main(int argc, char *argv[])

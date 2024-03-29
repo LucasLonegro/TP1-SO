@@ -23,7 +23,7 @@
 
 typedef struct shared_data
 {
-    sem_t sem1, sem2;
+    sem_t semData, semExit;
     char content[SHM_SIZE - sizeof(sem_t)];
 } shared_data;
 
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    if (sem_wait(&data->sem2) < 0)
+    if (sem_wait(&data->semExit) < 0)
     {
         perror("sem_wait");
 
@@ -85,11 +85,11 @@ int main(int argc, char *argv[])
     size_t n = 0;
     int imp = 0;
     char buffer[BUFFER_SIZE];
-    while (!(werr = sem_wait(&data->sem1)))
+    while (!(werr = sem_wait(&data->semData)))
     {
         if (data->content[n] == 0)
         {
-            if (sem_post(&data->sem2) < 0)
+            if (sem_post(&data->semExit) < 0)
             {
                 perror("sem_post");
 
@@ -121,8 +121,8 @@ int main(int argc, char *argv[])
     }
 
     D("Unmapping\n");
-    sem_destroy(&data->sem1);
-    sem_destroy(&data->sem2);
+    sem_destroy(&data->semData);
+    sem_destroy(&data->semExit);
     munmap(data, SHM_SIZE);
     close(shmid);
 

@@ -88,16 +88,6 @@ int main(int argc, char *argv[])
     {
         if (data->content[n] == 0)
         {
-            if (sem_post(&data->semExit) < 0)
-            {
-                perror("sem_post");
-
-                munmap(data, SHM_SIZE);
-                close(shmid);
-
-                exit(1);
-            }
-
             break;
         }
 
@@ -117,11 +107,24 @@ int main(int argc, char *argv[])
     if (werr < 0)
     {
         perror("sem_wait");
+
+        munmap(data, SHM_SIZE);
+        close(shmid);
+
+        exit(0);
+    }
+
+    if (sem_post(&data->semExit) < 0)
+    {
+        perror("sem_post");
+
+        munmap(data, SHM_SIZE);
+        close(shmid);
+
+        exit(1);
     }
 
     D("Unmapping\n");
-    sem_destroy(&data->semData);
-    sem_destroy(&data->semExit);
     munmap(data, SHM_SIZE);
     close(shmid);
 

@@ -83,7 +83,6 @@ int main(int argc, char *argv[])
 
     int werr;
     size_t n = 0;
-    int imp = 0;
     char buffer[BUFFER_SIZE];
     while (!(werr = sem_wait(&data->semData)))
     {
@@ -111,8 +110,6 @@ int main(int argc, char *argv[])
         n += len;
 
         printf("%s", buffer);
-
-        imp++;
     }
 
     if (werr < 0)

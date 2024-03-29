@@ -353,20 +353,7 @@ int main(int argc, char *argv[])
     }
 
     // Wait for vista to finish and free opened resources
-    int werr;
-    if (!(werr = sem_wait(&data->semExit)))
-    {
-        sem_destroy(&data->semData);
-        sem_destroy(&data->semExit);
-        munmap(data, SHM_SIZE);
-        shm_unlink(shmName);
-        fclose(outputFile);
-        close(shmid);
-
-        exit(1);
-    }
-
-    if (werr < 0)
+    if (sem_wait(&data->semExit) < 0)
     {
         perror("sem_wait");
 

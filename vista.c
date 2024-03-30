@@ -124,7 +124,6 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    D("Unmapping\n");
     munmap(data, SHM_SIZE);
     close(shmid);
 

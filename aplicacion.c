@@ -362,7 +362,6 @@ int main(int argc, char *argv[])
         munmap(data, SHM_SIZE);
         shm_unlink(shmName);
         fclose(outputFile);
-        close(shmid);
 
         exit(1);
     }

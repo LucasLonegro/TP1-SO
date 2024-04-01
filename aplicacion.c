@@ -119,72 +119,24 @@ int main(int argc, char *argv[])
     snprintf((char *)shmName, sizeof(shmName) - 1, "/md5_shm_%d", getpid());
 
     int shmid = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0666);
-    if (shmid < 0)
-    {
-        perror("shm_open");
+    CATCH_IF(shmid < 0, 0, "shm_open", 1);
 
-        // Nothing to free
-
-        exit(1);
-    }
-
-    if (ftruncate(shmid, SHM_SIZE))
-    {
-        perror("ftruncate");
-
-        shm_unlink(shmName);
-
-        exit(1);
-    }
+    CATCH_IF(ftruncate(shmid, SHM_SIZE), 1, "ftruncate", 1);
 
     data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
-    if (data == MAP_FAILED)
-    {
-        perror("mmap");
-
-        shm_unlink(shmName);
-
-        exit(1);
-    }
+    CATCH_IF(data == MAP_FAILED, 1, "mmap", 1);
 
     // Create the two anonymous semaphores
-    if (sem_init(&data->semData, 1, 0) < 0)
-    {
-        perror("sem_init");
+    CATCH_IF(sem_init(&data->semData, 1, 0) < 0, 2, "sem_init", 1);
 
-        munmap(data, SHM_SIZE);
-        shm_unlink(shmName);
-
-        exit(1);
-    }
-
-    if (sem_init(&data->semExit, 1, 1) < 0)
-    {
-        perror("sem_init");
-
-        sem_destroy(&data->semData);
-        munmap(data, SHM_SIZE);
-        shm_unlink(shmName);
-
-        exit(1);
-    }
+    CATCH_IF(sem_init(&data->semExit, 1, 1) < 0, 3, "sem_init", 1);
 
     puts(shmName);
     fflush(stdout);
 
     // Create output file
     outputFile = fopen("./bin/output.txt", "w");
-    if (!outputFile)
-    {
-        perror("fopen");
-
-        sem_destroy(&data->semExit);
-        sem_destroy(&data->semData);
-        munmap(data, SHM_SIZE);
-        shm_unlink(shmName);
-
-        exit(1);
-    }
+    CATCH_IF(!outputFile, 4, "fopen", 1);
 
     const int fileCount = argc - 1;
 
@@ -209,18 +161,7 @@ int main(int argc, char *argv[])
         int *wp = childrenWriteFD + i;
         int *rp = childrenReadFD + i;
 
-        if (!(children[i] = makeChild(wp, rp)))
-        {
-            perror("makeChild");
-
-            fclose(outputFile);
-            sem_destroy(&data->semExit);
-            sem_destroy(&data->semData);
-            munmap(data, SHM_SIZE);
-            shm_unlink(shmName);
-
-            exit(1);
-        }
+        CATCH_IF(!(children[i] = makeChild(wp, rp)), 5, "makeChild", 1);
 
         if (*rp > nfds)
         {
@@ -229,18 +170,7 @@ int main(int argc, char *argv[])
 
         // Give each child its initial file to handle
         ssize_t written = write(*wp, argv[i + 1], strlen(argv[i + 1]));
-        if (written < 0)
-        {
-            perror("write");
-
-            fclose(outputFile);
-            sem_destroy(&data->semExit);
-            sem_destroy(&data->semData);
-            munmap(data, SHM_SIZE);
-            shm_unlink(shmName);
-
-            exit(1);
-        }
+        CATCH_IF(written < 0, 5, "write", 1);
     }
 
     if (isatty(STDOUT_FILENO))
@@ -268,18 +198,7 @@ int main(int argc, char *argv[])
     {
         int childrenReady[MAX_CHILDREN];
         int count = awaitPipes(nfds + 1, childrenReadFD, childrenCount, childrenReady);
-        if (count < 0)
-        {
-            perror("awaitPipes");
-
-            fclose(outputFile);
-            sem_destroy(&data->semExit);
-            sem_destroy(&data->semData);
-            munmap(data, SHM_SIZE);
-            shm_unlink(shmName);
-
-            exit(1);
-        }
+        CATCH_IF(count < 0, 5, "awaitPipes", 1);
 
         processCount += count;
 
@@ -294,53 +213,20 @@ int main(int argc, char *argv[])
             int ctop = childrenReadFD[child];
 
             ssize_t n = read(ctop, buffer, sizeof(buffer) - 1);
-            if (n < 0)
-            {
-                perror("read");
-
-                fclose(outputFile);
-                sem_destroy(&data->semExit);
-                sem_destroy(&data->semData);
-                munmap(data, SHM_SIZE);
-                shm_unlink(shmName);
-
-                exit(1);
-            }
+            CATCH_IF(n < 0, 5, "read", 1);
 
             // Assert the null terminator
             // (the buffer _should_ include an \n at the end)
             buffer[n] = 0;
 
             // Write to the output file
-            if (fprintf(outputFile, "%s", buffer) < 0)
-            {
-                perror("fprintf");
-
-                fclose(outputFile);
-                sem_destroy(&data->semExit);
-                sem_destroy(&data->semData);
-                munmap(data, SHM_SIZE);
-                shm_unlink(shmName);
-
-                exit(1);
-            }
+            CATCH_IF(fprintf(outputFile, "%s", buffer) < 0, 5, "fprintf", 1);
 
             // Write to the shared memory
             writtenCount += sprintf(data->content + writtenCount, "%d: %s", cpid, buffer);
 
             // Raise the semaphore for the view to read the shared memory
-            if (sem_post(&data->semData))
-            {
-                perror("sem_post");
-
-                fclose(outputFile);
-                sem_destroy(&data->semExit);
-                sem_destroy(&data->semData);
-                munmap(data, SHM_SIZE);
-                shm_unlink(shmName);
-
-                exit(1);
-            }
+            CATCH_IF(sem_post(&data->semData), 5, "sem_post", 1);
 
             // Send the next file to each child ready while there are files to process
             int ptoc = childrenWriteFD[child];
@@ -355,47 +241,14 @@ int main(int argc, char *argv[])
             char *filename = argv[nextFile++];
 
             ssize_t written = write(ptoc, filename, strlen(filename));
-            if (written < 0)
-            {
-                perror("write");
-
-                fclose(outputFile);
-                sem_destroy(&data->semExit);
-                sem_destroy(&data->semData);
-                munmap(data, SHM_SIZE);
-                shm_unlink(shmName);
-
-                exit(1);
-            }
+            CATCH_IF(written < 0, 5, "write", 1);
         }
     }
 
-    if (sem_post(&data->semData))
-    {
-        perror("sem_post");
-
-        fclose(outputFile);
-        sem_destroy(&data->semExit);
-        sem_destroy(&data->semData);
-        munmap(data, SHM_SIZE);
-        shm_unlink(shmName);
-
-        exit(1);
-    }
+    CATCH_IF(sem_post(&data->semData), 5, "sem_post", 1);
 
     // Wait for vista to finish and free opened resources
-    if (sem_wait(&data->semExit) < 0)
-    {
-        perror("sem_wait");
-
-        fclose(outputFile);
-        sem_destroy(&data->semExit);
-        sem_destroy(&data->semData);
-        munmap(data, SHM_SIZE);
-        shm_unlink(shmName);
-
-        exit(1);
-    }
+    CATCH_IF(sem_wait(&data->semExit) < 0, 5, "sem_wait", 1);
 
     fclose(outputFile);
     sem_destroy(&data->semExit);

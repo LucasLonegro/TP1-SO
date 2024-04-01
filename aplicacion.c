@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
     {
         perror("sem_init");
 
+        sem_destroy(&data->semData);
         munmap(data, SHM_SIZE);
         shm_unlink(shmName);
 
@@ -147,8 +148,8 @@ int main(int argc, char *argv[])
     {
         perror("fopen");
 
-        sem_destroy(&data->semData);
         sem_destroy(&data->semExit);
+        sem_destroy(&data->semData);
         munmap(data, SHM_SIZE);
         shm_unlink(shmName);
 
@@ -182,11 +183,11 @@ int main(int argc, char *argv[])
         {
             perror("makeChild");
 
-            sem_destroy(&data->semData);
+            fclose(outputFile);
             sem_destroy(&data->semExit);
+            sem_destroy(&data->semData);
             munmap(data, SHM_SIZE);
             shm_unlink(shmName);
-            fclose(outputFile);
 
             exit(1);
         }
@@ -202,11 +203,11 @@ int main(int argc, char *argv[])
         {
             perror("write");
 
-            sem_destroy(&data->semData);
+            fclose(outputFile);
             sem_destroy(&data->semExit);
+            sem_destroy(&data->semData);
             munmap(data, SHM_SIZE);
             shm_unlink(shmName);
-            fclose(outputFile);
 
             exit(1);
         }
@@ -241,11 +242,11 @@ int main(int argc, char *argv[])
         {
             perror("awaitPipes");
 
-            sem_destroy(&data->semData);
+            fclose(outputFile);
             sem_destroy(&data->semExit);
+            sem_destroy(&data->semData);
             munmap(data, SHM_SIZE);
             shm_unlink(shmName);
-            fclose(outputFile);
 
             exit(1);
         }
@@ -267,11 +268,11 @@ int main(int argc, char *argv[])
             {
                 perror("read");
 
-                sem_destroy(&data->semData);
+                fclose(outputFile);
                 sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
                 munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
-                fclose(outputFile);
 
                 exit(1);
             }
@@ -285,11 +286,11 @@ int main(int argc, char *argv[])
             {
                 perror("fprintf");
 
-                sem_destroy(&data->semData);
+                fclose(outputFile);
                 sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
                 munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
-                fclose(outputFile);
 
                 exit(1);
             }
@@ -302,11 +303,11 @@ int main(int argc, char *argv[])
             {
                 perror("sem_post");
 
-                sem_destroy(&data->semData);
+                fclose(outputFile);
                 sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
                 munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
-                fclose(outputFile);
 
                 exit(1);
             }
@@ -328,11 +329,11 @@ int main(int argc, char *argv[])
             {
                 perror("write");
 
-                sem_destroy(&data->semData);
+                fclose(outputFile);
                 sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
                 munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
-                fclose(outputFile);
 
                 exit(1);
             }
@@ -343,11 +344,11 @@ int main(int argc, char *argv[])
     {
         perror("sem_post");
 
-        sem_destroy(&data->semData);
+        fclose(outputFile);
         sem_destroy(&data->semExit);
+        sem_destroy(&data->semData);
         munmap(data, SHM_SIZE);
         shm_unlink(shmName);
-        fclose(outputFile);
 
         exit(1);
     }
@@ -357,20 +358,19 @@ int main(int argc, char *argv[])
     {
         perror("sem_wait");
 
-        sem_destroy(&data->semData);
+        fclose(outputFile);
         sem_destroy(&data->semExit);
+        sem_destroy(&data->semData);
         munmap(data, SHM_SIZE);
         shm_unlink(shmName);
-        fclose(outputFile);
 
         exit(1);
     }
 
-    munmap(data, SHM_SIZE);
-    sem_destroy(&data->semData);
-    sem_destroy(&data->semExit);
-    shm_unlink(shmName);
     fclose(outputFile);
+    sem_destroy(&data->semExit);
+    sem_destroy(&data->semData);
+    munmap(data, SHM_SIZE);
     close(shmid);
 
     exit(0);

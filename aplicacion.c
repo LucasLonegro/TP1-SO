@@ -32,6 +32,33 @@
 #define D(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
+#define CATCH_IF(eval, stage, strerr, status) \
+    if (eval)                                 \
+    {                                         \
+        perror(strerr);                       \
+        switch (stage)                        \
+        {                                     \
+        case 5:                               \
+            fclose(outputFile);               \
+            /* fallthrough */                 \
+        case 4:                               \
+            sem_destroy(&data->semExit);      \
+            /* fallthrough */                 \
+        case 3:                               \
+            sem_destroy(&data->semData);      \
+            /* fallthrough */                 \
+        case 2:                               \
+            munmap(data, SHM_SIZE);           \
+            /* fallthrough */                 \
+        case 1:                               \
+            shm_unlink(shmName);              \
+            /* fallthrough */                 \
+        default:                              \
+            break;                            \
+        }                                     \
+        exit(status);                         \
+    }
+
 typedef struct shared_data
 {
     sem_t semData, semExit;
@@ -84,8 +111,11 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    char shmName[255] = "/md5_shm_0";
+    shared_data *data;
+    FILE *outputFile;
+
     // Open a shared memory with an unique name
-    const char shmName[255] = "/md5_shm_0";
     snprintf((char *)shmName, sizeof(shmName) - 1, "/md5_shm_%d", getpid());
 
     int shmid = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0666);
@@ -107,7 +137,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    shared_data *data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
+    data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
     if (data == MAP_FAILED)
     {
         perror("mmap");
@@ -143,7 +173,7 @@ int main(int argc, char *argv[])
     fflush(stdout);
 
     // Create output file
-    FILE *outputFile = fopen("./bin/output.txt", "w");
+    outputFile = fopen("./bin/output.txt", "w");
     if (!outputFile)
     {
         perror("fopen");

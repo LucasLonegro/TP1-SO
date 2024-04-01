@@ -13,6 +13,15 @@
             "cwd": "${workspaceRoot}",
             "valuesFormatting": "parseText",
             "preLaunchTask": "Docker: Debug project"
+        },
+        {
+            "name": "Debug Vista",
+            "type": "gdb",
+            "request": "launch",
+            "target": "./bin/vista",
+            "arguments": "${input:shm_name}",
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText"
         }
     ],
     "inputs": [
@@ -22,5 +31,10 @@
             "default": "Makefile",
             "type": "promptString"
         },
+        {
+            "id": "shm_name",
+            "description": "Share memory name:",
+            "type": "promptString"
+        }
     ],
 }

@@ -2,6 +2,7 @@
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 
 #include <fcntl.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,14 +23,20 @@
 #define MAX_CHILDREN 20
 #define READ_END 0
 #define WRITE_END 1
-#define BUFFER_SIZE 4096
-#define SHM_SIZE 0x10000
+#define BUFFER_SIZE 8192
+#define SHM_SIZE 0x4000000
 
 #ifndef DEBUG
 #define D(...)
 #else
 #define D(...) fprintf(stderr, __VA_ARGS__)
 #endif
+
+typedef struct shared_data
+{
+    sem_t semData, semExit;
+    char content[SHM_SIZE - 2 * sizeof(sem_t)];
+} shared_data;
 
 /**
  * @brief Create a child process and return the read and write ends of the pipes
@@ -50,14 +57,13 @@ fd_set makeFdSet(int *fdVector, int dim);
 /**
  * @brief Get the buffer of fds with status ready and write the outputs to dumpFd
  *
- * @param nfds one more than maximum fd expected in readFds
- * @param readFds array of all fds to be read
- * @param readCount dim of readFds
- * @param dumpFd file where buffers will be pasted
- * @param readFrom return parameter. An array of all fds in readFds that were ready and read from. It may be NULL.
+ * @param nfds one more than maximum fd expected in childrenReadFD
+ * @param childrenReadFD array of all fds to be read
+ * @param readCount dim of childrenReadFD
+ * @param ready return parameter. An array of all fds in childrenReadFD that are ready
  * @return int the number of read fds, -1 if error
  */
-ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom);
+ssize_t awaitPipes(int nfds, int *childrenReadFD, int readCount, int *ready);
 /**
  * @brief Remove the child at index i from the arrays write and read
  *
@@ -101,14 +107,50 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    shared_data *data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
+    if (data == MAP_FAILED)
+    {
+        perror("mmap");
+
+        shm_unlink(shmName);
+
+        exit(1);
+    }
+
+    // Create the two anonymous semaphores
+    if (sem_init(&data->semData, 1, 0) < 0)
+    {
+        perror("sem_init");
+
+        munmap(data, SHM_SIZE);
+        shm_unlink(shmName);
+
+        exit(1);
+    }
+
+    if (sem_init(&data->semExit, 1, 1) < 0)
+    {
+        perror("sem_init");
+
+        sem_destroy(&data->semData);
+        munmap(data, SHM_SIZE);
+        shm_unlink(shmName);
+
+        exit(1);
+    }
+
     puts(shmName);
+    fflush(stdout);
 
     // Create output file
-    FILE *output = fopen("./bin/output.txt", "w");
-    if (!output)
+    FILE *outputFile = fopen("./bin/output.txt", "w");
+    if (!outputFile)
     {
         perror("fopen");
 
+        sem_destroy(&data->semExit);
+        sem_destroy(&data->semData);
+        munmap(data, SHM_SIZE);
         shm_unlink(shmName);
 
         exit(1);
@@ -141,8 +183,11 @@ int main(int argc, char *argv[])
         {
             perror("makeChild");
 
+            fclose(outputFile);
+            sem_destroy(&data->semExit);
+            sem_destroy(&data->semData);
+            munmap(data, SHM_SIZE);
             shm_unlink(shmName);
-            fclose(output);
 
             exit(1);
         }
@@ -158,11 +203,19 @@ int main(int argc, char *argv[])
         {
             perror("write");
 
+            fclose(outputFile);
+            sem_destroy(&data->semExit);
+            sem_destroy(&data->semData);
+            munmap(data, SHM_SIZE);
             shm_unlink(shmName);
-            fclose(output);
 
             exit(1);
         }
+    }
+
+    if (isatty(STDOUT_FILENO))
+    {
+        sleep(10);
     }
 
     /**
@@ -173,6 +226,10 @@ int main(int argc, char *argv[])
      * @brief The number of files processed by children
      */
     int processCount = 0;
+    /**
+     * @brief The shared memory content index
+     */
+    int writtenCount = 0;
 
     // Read from file descriptors as they become ready
     // Write to each ready read file descriptor's associated write file descriptor the next file for the child to manage
@@ -180,23 +237,82 @@ int main(int argc, char *argv[])
     while (processCount < fileCount)
     {
         int childrenReady[MAX_CHILDREN];
-        int count = forwardPipes(nfds + 1, childrenReadFD, childrenCount, output, childrenReady);
+        int count = awaitPipes(nfds + 1, childrenReadFD, childrenCount, childrenReady);
         if (count < 0)
         {
-            perror("forwardPipes");
+            perror("awaitPipes");
 
+            fclose(outputFile);
+            sem_destroy(&data->semExit);
+            sem_destroy(&data->semData);
+            munmap(data, SHM_SIZE);
             shm_unlink(shmName);
-            fclose(output);
 
             exit(1);
         }
 
         processCount += count;
 
-        // Send the next file to each child ready while there are files to process
+        char buffer[BUFFER_SIZE];
+
         for (int i = 0; i < count; i++)
         {
             int child = childrenReady[i];
+            pid_t cpid = children[child];
+
+            // Read each child's message and write it to the results files
+            int ctop = childrenReadFD[child];
+
+            ssize_t n = read(ctop, buffer, sizeof(buffer) - 1);
+            if (n < 0)
+            {
+                perror("read");
+
+                fclose(outputFile);
+                sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
+                munmap(data, SHM_SIZE);
+                shm_unlink(shmName);
+
+                exit(1);
+            }
+
+            // Assert the null terminator
+            // (the buffer _should_ include an \n at the end)
+            buffer[n] = 0;
+
+            // Write to the output file
+            if (fprintf(outputFile, "%s", buffer) < 0)
+            {
+                perror("fprintf");
+
+                fclose(outputFile);
+                sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
+                munmap(data, SHM_SIZE);
+                shm_unlink(shmName);
+
+                exit(1);
+            }
+
+            // Write to the shared memory
+            writtenCount += sprintf(data->content + writtenCount, "%d: %s", cpid, buffer);
+
+            // Raise the semaphore for the view to read the shared memory
+            if (sem_post(&data->semData))
+            {
+                perror("sem_post");
+
+                fclose(outputFile);
+                sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
+                munmap(data, SHM_SIZE);
+                shm_unlink(shmName);
+
+                exit(1);
+            }
+
+            // Send the next file to each child ready while there are files to process
             int ptoc = childrenWriteFD[child];
 
             if (nextFile > fileCount)
@@ -213,23 +329,49 @@ int main(int argc, char *argv[])
             {
                 perror("write");
 
+                fclose(outputFile);
+                sem_destroy(&data->semExit);
+                sem_destroy(&data->semData);
+                munmap(data, SHM_SIZE);
                 shm_unlink(shmName);
-                fclose(output);
 
                 exit(1);
             }
         }
     }
 
-    // Close results file
-    fclose(output);
-
-    // Unlink the shared memory
-    if (shm_unlink(shmName) < 0)
+    if (sem_post(&data->semData))
     {
-        perror("shm_unlink");
+        perror("sem_post");
+
+        fclose(outputFile);
+        sem_destroy(&data->semExit);
+        sem_destroy(&data->semData);
+        munmap(data, SHM_SIZE);
+        shm_unlink(shmName);
+
         exit(1);
     }
+
+    // Wait for vista to finish and free opened resources
+    if (sem_wait(&data->semExit) < 0)
+    {
+        perror("sem_wait");
+
+        fclose(outputFile);
+        sem_destroy(&data->semExit);
+        sem_destroy(&data->semData);
+        munmap(data, SHM_SIZE);
+        shm_unlink(shmName);
+
+        exit(1);
+    }
+
+    fclose(outputFile);
+    sem_destroy(&data->semExit);
+    sem_destroy(&data->semData);
+    munmap(data, SHM_SIZE);
+    close(shmid);
 
     exit(0);
 }
@@ -288,12 +430,11 @@ pid_t makeChild(int *write, int *read)
     return 0;
 }
 
-ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *readFrom)
+ssize_t awaitPipes(int nfds, int *childrenReadFD, int readCount, int *ready)
 {
     int index = 0;
-    char buffer[BUFFER_SIZE] = {0};
 
-    fd_set reading = makeFdSet(readFds, readCount);
+    fd_set reading = makeFdSet(childrenReadFD, readCount);
 
     if (select(nfds, &reading, NULL, NULL, NULL) < 0)
     {
@@ -303,29 +444,9 @@ ssize_t forwardPipes(int nfds, int *readFds, int readCount, FILE *dumpFd, int *r
     for (int i = 0; i < readCount; i++)
     {
         // Check which read fd are ready (the child has finished processing a file)
-        if (FD_ISSET(readFds[i], &reading))
+        if (FD_ISSET(childrenReadFD[i], &reading))
         {
-            if (readFrom)
-            {
-                readFrom[index++] = i;
-            }
-
-            // Read the child's output
-            ssize_t n = read(readFds[i], buffer, sizeof(buffer) - 1);
-            if (n < 0)
-            {
-                return -1;
-            }
-
-            // Assert the null terminator
-            buffer[n] = 0;
-
-            // Write to the output file
-            // (the buffer _should_ include an \n at the end)
-            if (fprintf(dumpFd, "%s", buffer) < 0)
-            {
-                return -1;
-            }
+            ready[index++] = i;
         }
     }
 

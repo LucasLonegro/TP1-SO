@@ -3,7 +3,6 @@
 
 #include <fcntl.h>
 #include <semaphore.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,15 +10,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define BUFFER_SIZE 8193
-#define SHM_SIZE 0x4000000
-#define SHM_NAME_SIZE 255
-
-#ifndef DEBUG
-#define D(...)
-#else
-#define D(...) fprintf(stderr, __VA_ARGS__)
-#endif
+#include "commons.h"
 
 #define CATCH_IF(eval, stage, strerr, status) \
     if (eval)                                 \
@@ -38,12 +29,6 @@
         }                                     \
         exit(status);                         \
     }
-
-typedef struct shared_data
-{
-    sem_t semData, semExit;
-    char content[SHM_SIZE - 2 * sizeof(sem_t)];
-} shared_data;
 
 int main(int argc, char *argv[])
 {
@@ -66,7 +51,7 @@ int main(int argc, char *argv[])
         shmName[n - 1] = 0;
     }
 
-    shmid = shm_open(shmName, O_RDWR, 0666);
+    shmid = shm_open(shmName, O_RDWR, DEFFILEMODE);
     CATCH_IF(shmid < 0, 0, "shm_open", 1);
 
     data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);

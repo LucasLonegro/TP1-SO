@@ -21,6 +21,24 @@
 #define D(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
+#define CATCH_IF(eval, stage, strerr, status) \
+    if (eval)                                 \
+    {                                         \
+        perror(strerr);                       \
+        switch (stage)                        \
+        {                                     \
+        case 2:                               \
+            munmap(data, SHM_SIZE);           \
+            /* fallthrough */                 \
+        case 1:                               \
+            close(shmid);                     \
+            /* fallthrough */                 \
+        default:                              \
+            break;                            \
+        }                                     \
+        exit(status);                         \
+    }
+
 typedef struct shared_data
 {
     sem_t semData, semExit;
@@ -29,6 +47,9 @@ typedef struct shared_data
 
 int main(int argc, char *argv[])
 {
+    int shmid;
+    shared_data *data;
+
     char shmName[SHM_NAME_SIZE] = {0};
 
     if (argc > 1)
@@ -38,48 +59,20 @@ int main(int argc, char *argv[])
     else
     {
         int n = read(STDIN_FILENO, shmName, sizeof(shmName) - 1);
-        if (n < 1)
-        {
-            perror("read");
-
-            // Nothing to free
-
-            exit(1);
-        }
+        CATCH_IF(n < 0, 0, "read", 1);
+        CATCH_IF(n < 1, 0, "stdin EOF", 0);
 
         // Assert null terminator
         shmName[n - 1] = 0;
     }
 
-    int shmid = shm_open(shmName, O_RDWR, 0666);
-    if (shmid < 0)
-    {
-        perror("shm_open");
+    shmid = shm_open(shmName, O_RDWR, 0666);
+    CATCH_IF(shmid < 0, 0, "shm_open", 1);
 
-        // Nothing to free
+    data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
+    CATCH_IF(data == MAP_FAILED, 1, "mmap", 1);
 
-        exit(1);
-    }
-
-    shared_data *data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
-    if (data == MAP_FAILED)
-    {
-        perror("mmap");
-
-        close(shmid);
-
-        exit(1);
-    }
-
-    if (sem_wait(&data->semExit) < 0)
-    {
-        perror("sem_wait");
-
-        munmap(data, SHM_SIZE);
-        close(shmid);
-
-        exit(1);
-    }
+    CATCH_IF(sem_wait(&data->semExit) < 0, 2, "sem_wait", 1);
 
     int werr;
     size_t n = 0;
@@ -104,25 +97,9 @@ int main(int argc, char *argv[])
         printf("%s", buffer);
     }
 
-    if (werr < 0)
-    {
-        perror("sem_wait");
+    CATCH_IF(werr < 0, 2, "sem_wait", 1);
 
-        munmap(data, SHM_SIZE);
-        close(shmid);
-
-        exit(0);
-    }
-
-    if (sem_post(&data->semExit) < 0)
-    {
-        perror("sem_post");
-
-        munmap(data, SHM_SIZE);
-        close(shmid);
-
-        exit(1);
-    }
+    CATCH_IF(sem_post(&data->semExit) < 0, 2, "sem_post", 1);
 
     munmap(data, SHM_SIZE);
     close(shmid);

@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #define MAX_PATH 4096
+#define HASH_LENGTH 32
 
 #ifndef DEBUG
 #define D(...)
@@ -28,7 +29,7 @@ int main()
     /**
      * @brief The output string
      */
-    char output[32 /* Hash */ + 2 /* Spaces */ + MAX_PATH + 1 /* \0 */];
+    char output[HASH_LENGTH + 2 /* Spaces */ + MAX_PATH + 1 /* \0 */];
 
     // Flush stdout with every \n if it is not a tty
     setlinebuf(stdout);
@@ -41,9 +42,7 @@ int main()
             // Ignore the rest of the input
             fflush(stdin);
 
-            // Unexpected error
             puts("File path too long");
-
             continue;
         }
 
@@ -54,9 +53,7 @@ int main()
         struct stat fileData;
         if (stat(input, &fileData) || S_ISDIR(fileData.st_mode))
         {
-            // Inform that the path given did not refer to a file this process could read
             printf("Could not read: %s\n", input);
-
             continue;
         }
 
@@ -67,9 +64,7 @@ int main()
         FILE *md5sum = popen(cmd, "r");
         if (!md5sum)
         {
-            // Inform that the md5sum command could not be executed
-            printf("Could not execute: %s\n", input);
-
+            printf("Failed to execute: %s\n", input);
             continue;
         }
 
@@ -81,7 +76,7 @@ int main()
         }
         else
         {
-            printf("Could not handle: %s\n", input);
+            printf("Failed to calculate: %s\n", input);
         }
 
         pclose(md5sum);

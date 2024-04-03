@@ -153,11 +153,6 @@ int main(int argc, char *argv[])
         CATCH_IF(written < 0, 5, "write", 1);
     }
 
-    if (isatty(STDOUT_FILENO))
-    {
-        sleep(10);
-    }
-
     /**
      * @brief The index (in argv) of the next file to be processed by a child
      */
@@ -223,6 +218,11 @@ int main(int argc, char *argv[])
             ssize_t written = write(ptoc, filename, strlen(filename));
             CATCH_IF(written < 0, 5, "write", 1);
         }
+    }
+
+    if (isatty(STDOUT_FILENO))
+    {
+        sleep(10);
     }
 
     CATCH_IF(sem_post(&data->semData), 5, "sem_post", 1);

@@ -208,8 +208,8 @@ int main(int argc, char *argv[])
 
             if (nextFile > fileCount)
             {
-                close(ptoc);
-                childrenCount = removeChildFromArrays(child, children, childrenWriteFD, childrenReadFD, childrenCount);
+                // close(ptoc);
+                // childrenCount = removeChildFromArrays(child, children, childrenWriteFD, childrenReadFD, childrenCount);
                 continue;
             }
 

@@ -205,18 +205,13 @@ int main(int argc, char *argv[])
 
             // Send the next file to each child ready while there are files to process
             int ptoc = childrenWriteFD[child];
-
-            if (nextFile > fileCount)
+            if (nextFile <= fileCount)
             {
-                // close(ptoc);
-                // childrenCount = removeChildFromArrays(child, children, childrenWriteFD, childrenReadFD, childrenCount);
-                continue;
+                char *filename = argv[nextFile++];
+
+                ssize_t written = write(ptoc, filename, strlen(filename));
+                CATCH_IF(written < 0, 5, "write", 1);
             }
-
-            char *filename = argv[nextFile++];
-
-            ssize_t written = write(ptoc, filename, strlen(filename));
-            CATCH_IF(written < 0, 5, "write", 1);
         }
     }
 

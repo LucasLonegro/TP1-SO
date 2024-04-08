@@ -71,17 +71,6 @@ fd_set makeFdSet(int *fdVector, int dim);
  * @return int the number of read fds, -1 if error
  */
 ssize_t awaitPipes(int nfds, int *childrenReadFD, int readCount, int *ready);
-/**
- * @brief Remove the child at index i from the arrays write and read
- *
- * @param i Child index
- * @param children The children pids array
- * @param write The children write fds array
- * @param read The children read fds array
- * @param childs The number of children (dim of children, write and read)
- * @return int The new number of children
- */
-int removeChildFromArrays(int i, pid_t *children, int *write, int *read, int childs);
 
 int main(int argc, char *argv[])
 {
@@ -320,12 +309,4 @@ fd_set makeFdSet(int *fdVector, int dim)
         FD_SET(fdVector[i], &ans);
     }
     return ans;
-}
-
-int removeChildFromArrays(int i, pid_t *children, int *write, int *read, int childs)
-{
-    children[i] = children[childs - 1];
-    write[i] = write[childs - 1];
-    read[i] = read[childs - 1];
-    return childs - 1;
 }

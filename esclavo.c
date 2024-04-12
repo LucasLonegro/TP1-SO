@@ -7,14 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define MAX_PATH 4096
-#define HASH_LENGTH 32
-
-#ifndef DEBUG
-#define D(...)
-#else
-#define D(...) fprintf(stderr, __VA_ARGS__)
-#endif
+#include "commons.h"
 
 int main()
 {

@@ -16,21 +16,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
-
-#define MIN_CHILDREN 5
-#define MAX_CHILDREN 20
-#define READ_END 0
-#define WRITE_END 1
-#define BUFFER_SIZE 8192
-#define SHM_SIZE 0x4000000
-
-#ifndef DEBUG
-#define D(...)
-#else
-#define D(...) fprintf(stderr, __VA_ARGS__)
-#endif
+#include "commons.h"
 
 #define CATCH_IF(eval, stage, strerr, status) \
     if (eval)                                 \
@@ -59,12 +45,6 @@
         exit(status);                         \
     }
 
-typedef struct shared_data
-{
-    sem_t semData, semExit;
-    char content[SHM_SIZE - 2 * sizeof(sem_t)];
-} shared_data;
-
 /**
  * @brief Create a child process and return the read and write ends of the pipes
  *
@@ -91,17 +71,6 @@ fd_set makeFdSet(int *fdVector, int dim);
  * @return int the number of read fds, -1 if error
  */
 ssize_t awaitPipes(int nfds, int *childrenReadFD, int readCount, int *ready);
-/**
- * @brief Remove the child at index i from the arrays write and read
- *
- * @param i Child index
- * @param children The children pids array
- * @param write The children write fds array
- * @param read The children read fds array
- * @param childs The number of children (dim of children, write and read)
- * @return int The new number of children
- */
-int removeChildFromArrays(int i, pid_t *children, int *write, int *read, int childs);
 
 int main(int argc, char *argv[])
 {
@@ -111,14 +80,14 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    char shmName[255] = "/md5_shm_0";
+    char shmName[SHM_NAME_SIZE] = "/md5_shm_0";
     shared_data *data;
     FILE *outputFile;
 
     // Open a shared memory with an unique name
     snprintf((char *)shmName, sizeof(shmName) - 1, "/md5_shm_%d", getpid());
 
-    int shmid = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0666);
+    int shmid = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, DEFFILEMODE);
     CATCH_IF(shmid < 0, 0, "shm_open", 1);
 
     CATCH_IF(ftruncate(shmid, SHM_SIZE), 1, "ftruncate", 1);
@@ -173,11 +142,6 @@ int main(int argc, char *argv[])
         CATCH_IF(written < 0, 5, "write", 1);
     }
 
-    if (isatty(STDOUT_FILENO))
-    {
-        sleep(10);
-    }
-
     /**
      * @brief The index (in argv) of the next file to be processed by a child
      */
@@ -230,19 +194,19 @@ int main(int argc, char *argv[])
 
             // Send the next file to each child ready while there are files to process
             int ptoc = childrenWriteFD[child];
-
-            if (nextFile > fileCount)
+            if (nextFile <= fileCount)
             {
-                close(ptoc);
-                childrenCount = removeChildFromArrays(child, children, childrenWriteFD, childrenReadFD, childrenCount);
-                continue;
+                char *filename = argv[nextFile++];
+
+                ssize_t written = write(ptoc, filename, strlen(filename));
+                CATCH_IF(written < 0, 5, "write", 1);
             }
-
-            char *filename = argv[nextFile++];
-
-            ssize_t written = write(ptoc, filename, strlen(filename));
-            CATCH_IF(written < 0, 5, "write", 1);
         }
+    }
+
+    if (isatty(STDOUT_FILENO))
+    {
+        sleep(10);
     }
 
     CATCH_IF(sem_post(&data->semData), 5, "sem_post", 1);
@@ -345,12 +309,4 @@ fd_set makeFdSet(int *fdVector, int dim)
         FD_SET(fdVector[i], &ans);
     }
     return ans;
-}
-
-int removeChildFromArrays(int i, pid_t *children, int *write, int *read, int childs)
-{
-    children[i] = children[childs - 1];
-    write[i] = write[childs - 1];
-    read[i] = read[childs - 1];
-    return childs - 1;
 }

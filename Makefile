@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -O2
-ALL_CFLAGS = -pthread -Wall -Wextra -std=gnu17 -fdiagnostics-color=always $(CFLAGS)
+ALL_CFLAGS = -pthread -Wall -Wextra -std=gnu17 -fdiagnostics-color=always -lrt $(CFLAGS)
 
 OUT_DIR = bin
 
@@ -9,13 +9,13 @@ TEST_FILES = Makefile
 all: pre-build md5 esclavo vista
 
 md5: aplicacion.c
-	$(CC) $(ALL_CFLAGS) $< -o $(OUT_DIR)/$@
+	$(CC) $< $(ALL_CFLAGS) -o $(OUT_DIR)/$@
 
 esclavo: esclavo.c
-	$(CC) $(ALL_CFLAGS) $< -o $(OUT_DIR)/$@
+	$(CC) $< $(ALL_CFLAGS) -o $(OUT_DIR)/$@
 
 vista: vista.c
-	$(CC) $(ALL_CFLAGS) $< -o $(OUT_DIR)/$@
+	$(CC) $< $(ALL_CFLAGS) -o $(OUT_DIR)/$@
 
 debug: CFLAGS = -g -DDEBUG
 debug: all

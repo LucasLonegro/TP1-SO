@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 2)
     {
-        puts("Usage: ./md5 <files_to_process>");
+        fprintf(stderr, "Usage: ./md5 <files_to_process>\n");
         exit(1);
     }
 

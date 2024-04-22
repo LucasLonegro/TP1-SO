@@ -125,6 +125,10 @@ int main(int argc, char *argv[])
      */
     int nfds = 0;
 
+    char *myfifo = "/tmp/myfifo";
+
+    mkfifo(myfifo, 0666); // validar
+
     for (int i = 0; i < childrenCount; i++)
     {
         int *wp = childrenWriteFD + i;
@@ -218,6 +222,7 @@ int main(int argc, char *argv[])
     sem_destroy(&data->semExit);
     sem_destroy(&data->semData);
     munmap(data, SHM_SIZE);
+    unlink(myfifo);
     close(shmid);
 
     exit(0);

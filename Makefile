@@ -6,7 +6,7 @@ OUT_DIR = bin
 
 TEST_FILES = Makefile
 
-all: pre-build md5 esclavo vista
+all: pre-build md5 esclavo vista2
 
 md5: aplicacion.c
 	$(CC) $< $(ALL_CFLAGS) -o $(OUT_DIR)/$@
@@ -14,7 +14,7 @@ md5: aplicacion.c
 esclavo: esclavo.c
 	$(CC) $< $(ALL_CFLAGS) -o $(OUT_DIR)/$@
 
-vista: vista.c
+vista2: vista2.c
 	$(CC) $< $(ALL_CFLAGS) -o $(OUT_DIR)/$@
 
 debug: CFLAGS = -g -DDEBUG

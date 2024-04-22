@@ -1,10 +1,19 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 
+#include <fcntl.h>
+#include <semaphore.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ipc.h>
+#include <sys/mman.h>
+#include <sys/prctl.h>
+#include <sys/select.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "commons.h"
@@ -27,7 +36,12 @@ int main()
     // Flush stdout with every \n if it is not a tty
     setlinebuf(stdout);
 
-    ssize_t n;
+    char *path = "/tmp/myfifo";
+
+    int namedPipeFd = open(path, O_WRONLY);
+
+    int n = 0;
+
     while ((n = read(STDIN_FILENO, input, sizeof(input) - 1)))
     {
         if (n == sizeof(input) - 1 || n < 0)
@@ -65,15 +79,16 @@ int main()
         if (fgets(output, sizeof(output), md5sum))
         {
             // output _should_ already include an \n at the end
+            write(namedPipeFd, output, strlen(output));
             printf("%s", output);
         }
         else
         {
             printf("Failed to calculate: %s\n", input);
         }
-
         pclose(md5sum);
     }
 
+    close(namedPipeFd);
     exit(0);
 }
